@@ -1,0 +1,9 @@
+# Godot 4 generated files
+.godot/
+/android/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.tmp
+.vscode/
