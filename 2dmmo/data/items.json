@@ -1,0 +1,11 @@
+{
+	"iron_ore": { "name": "Iron Ore", "icon": "res://art/icon_iron_ore.png", "stack": 50, "description": "Raw ore from the hills. Smelt it at a furnace." },
+	"coal": { "name": "Coal", "icon": "res://art/icon_coal.png", "stack": 50, "description": "Fuel for the furnace." },
+	"log": { "name": "Log", "icon": "res://art/icon_log.png", "stack": 50, "description": "Felled timber. Saw it into planks at a workbench." },
+	"sapling": { "name": "Sapling", "icon": "res://art/icon_sapling.png", "stack": 20, "description": "Plant it on a stump to grow a new tree." },
+	"iron_ingot": { "name": "Iron Ingot", "icon": "res://art/icon_iron_ingot.png", "stack": 50, "description": "Refined iron, ready for smithing." },
+	"plank": { "name": "Plank", "icon": "res://art/icon_plank.png", "stack": 50, "description": "Sawn timber." },
+	"handle": { "name": "Handle", "icon": "res://art/icon_handle.png", "stack": 50, "description": "A grip for tools and weapons." },
+	"iron_sword": { "name": "Iron Sword", "icon": "res://art/icon_iron_sword.png", "stack": 1, "description": "A plain but reliable blade.", "stats": { "damage": 10, "speed": 5, "durability": 100 } },
+	"wooden_shield": { "name": "Wooden Shield", "icon": "res://art/icon_wooden_shield.png", "stack": 1, "description": "Iron-rimmed planks.", "stats": { "armor": 6, "block": 4, "durability": 80 } }
+}

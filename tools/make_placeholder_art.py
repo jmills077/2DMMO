@@ -1,0 +1,302 @@
+"""Generates simple 16x16 placeholder pixel art for the prototype.
+
+Run from the repo root:  python3 tools/make_placeholder_art.py
+Writes PNG files into 2dmmo/art/. Replace any of them with real art later,
+keeping the same file name and size, and the game picks it up automatically.
+"""
+from pathlib import Path
+import random
+
+from PIL import Image
+
+OUT = Path(__file__).resolve().parent.parent / "2dmmo" / "art"
+OUT.mkdir(parents=True, exist_ok=True)
+
+C = {
+    ".": (0, 0, 0, 0),
+    "g": (88, 160, 72, 255), "G": (70, 136, 58, 255), "y": (230, 214, 92, 255),
+    "p": (186, 156, 104, 255), "P": (160, 130, 84, 255),
+    "w": (66, 128, 204, 255), "W": (98, 160, 228, 255),
+    "s": (150, 150, 158, 255), "S": (118, 118, 128, 255), "k": (60, 60, 68, 255),
+    "o": (196, 112, 64, 255), "O": (226, 150, 96, 255),
+    "c": (34, 34, 40, 255), "C": (70, 70, 80, 255),
+    "b": (120, 82, 50, 255), "B": (92, 60, 36, 255), "t": (150, 108, 68, 255),
+    "l": (52, 120, 52, 255), "L": (76, 156, 70, 255), "d": (36, 92, 40, 255),
+    "f": (240, 120, 40, 255), "F": (255, 200, 80, 255),
+    "h": (236, 196, 160, 255), "r": (180, 52, 52, 255), "R": (140, 36, 36, 255),
+    "n": (60, 48, 40, 255), "i": (200, 204, 214, 255), "I": (150, 156, 170, 255),
+    "e": (40, 40, 48, 255),
+}
+
+
+def from_rows(rows, w=16):
+    rows = [r.ljust(w, ".")[:w] for r in rows]
+    h = len(rows)
+    img = Image.new("RGBA", (w, h))
+    for y, row in enumerate(rows):
+        for x, ch in enumerate(row):
+            img.putpixel((x, y), C[ch])
+    return img
+
+
+def noise_tile(base, accent, seed, density=0.12):
+    rnd = random.Random(seed)
+    img = Image.new("RGBA", (16, 16), C[base])
+    for y in range(16):
+        for x in range(16):
+            if rnd.random() < density:
+                img.putpixel((x, y), C[accent])
+    return img
+
+
+def save(img, name):
+    img.save(OUT / f"{name}.png")
+
+
+# --- Terrain atlas: grass, grass with flowers, path, water, town floor ---
+tiles = [
+    noise_tile("g", "G", 1),
+    noise_tile("g", "G", 2),
+    noise_tile("p", "P", 3, 0.18),
+    noise_tile("w", "W", 4, 0.10),
+    noise_tile("s", "S", 5, 0.15),
+]
+for (x, y) in [(3, 4), (11, 9), (6, 12)]:
+    tiles[1].putpixel((x, y), C["y"])
+floor = tiles[4]
+for i in range(16):
+    floor.putpixel((i, 0), C["S"])
+    floor.putpixel((0, i), C["S"])
+atlas = Image.new("RGBA", (16 * len(tiles), 16))
+for i, t in enumerate(tiles):
+    atlas.paste(t, (i * 16, 0))
+save(atlas, "terrain")
+
+save(from_rows([
+    "................",
+    ".....nnnnnn.....",
+    "....nnnnnnnn....",
+    "....nhhhhhhn....",
+    "....hhehhehh....",
+    "....hhhhhhhh....",
+    ".....hhhhhh.....",
+    "....rrrrrrrr....",
+    "...rrRrrrrRrr...",
+    "...hrrrrrrrrh...",
+    "...hrRrrrrRrh...",
+    ".....rrrrrr.....",
+    ".....BB..BB.....",
+    ".....BB..BB.....",
+    ".....nn..nn.....",
+    "................",
+]), "player")
+
+
+def rock(ore, ore_hi):
+    return from_rows([
+        "................",
+        "................",
+        "................",
+        ".....kkkkkk.....",
+        "....ksssssSk....",
+        "...ks" + ore + "sssss" + ore_hi + "Sk...",
+        "...kss" + ore + ore + "sssSSk...",
+        "..kssssss" + ore + "ssSSk..",
+        "..ks" + ore_hi + "sssss" + ore + "sSSk..",
+        "..kssss" + ore + "ssssSSk..",
+        "..kSsssssss" + ore + "SSk..",
+        "...kSSssss" + ore + "SSk...",
+        "....kkSSSSSkk...",
+        "......kkkkk.....",
+        "................",
+        "................",
+    ])
+
+
+save(rock("o", "O"), "iron_rock")
+save(rock("c", "C"), "coal_rock")
+save(from_rows([
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "......kkkk......",
+    ".....kSssSk.....",
+    "....kSssssSk....",
+    "....kSSsssSk....",
+    ".....kkkkkk.....",
+    "................",
+    "................",
+]), "rock_depleted")
+
+# Tree is 16x32: canopy above, trunk at the bottom so its base sits on the tile.
+tree_rows = [
+    "................",
+    "................",
+    "......dddd......",
+    "....ddlllldd....",
+    "...dlllLLllld...",
+    "..dllLLllllLld..",
+    "..dlllllLLllld..",
+    ".dlLLlllllllLld.",
+    ".dllllLLlllllld.",
+    ".dlllllllLLllld.",
+    ".dlLLlllllllLld.",
+    "..dlllLLlllllld.",
+    "..dllllllLLlld..",
+    "...dlLLlllllld..",
+    "...dlllllLLld...",
+    "....ddlllllld...",
+    ".....ddlllldd...",
+    ".......dddd.....",
+    ".......bbB......",
+    ".......bbB......",
+    ".......bbB......",
+    ".......bbB......",
+    ".......bbB......",
+    "......bbbbB.....",
+    ".....bbBbbbB....",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+]
+tree_rows = tree_rows[25:] + tree_rows[:25]  # trunk base on the bottom row
+save(from_rows(tree_rows), "tree")
+
+save(from_rows([
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "......tttt......",
+    ".....tbbbbt.....",
+    ".....bbBbbb.....",
+    ".....bbbbBb.....",
+    "....bbBbbbbB....",
+    "................",
+    "................",
+]), "stump")
+
+save(from_rows([
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    ".......L........",
+    "......LlL.......",
+    ".....LlLlL......",
+    "......lLl.......",
+    ".......b........",
+    ".......b........",
+    "......PPP.......",
+    "................",
+    "................",
+]), "sapling")
+
+save(from_rows([
+    "................",
+    "....kkkkkkkk....",
+    "...kSSSSSSSSk...",
+    "..kSsssssssSSk..",
+    "..kSskkkkkksSk..",
+    "..kSskeeeeksSk..",
+    "..kSskeFFeksSk..",
+    "..kSskfFFfksSk..",
+    "..kSskffffksSk..",
+    "..kSskkkkkksSk..",
+    "..kSssssssssSk..",
+    "..kSsSsSsSsSSk..",
+    "..kSSSSSSSSSSk..",
+    "..kkkkkkkkkkkk..",
+    "................",
+    "................",
+]), "furnace")
+
+save(from_rows([
+    "................",
+    "................",
+    "................",
+    "................",
+    "...i............",
+    "...I.....bbb....",
+    "..ttttttttttttt.",
+    "..tbbbbbbbbbbbt.",
+    "..BBBBBBBBBBBBB.",
+    "..B.B.......B.B.",
+    "..B.B.......B.B.",
+    "..B.BBBBBBBBB.B.",
+    "..B.B.......B.B.",
+    "..B.B.......B.B.",
+    "..B...........B.",
+    "................",
+]), "workbench")
+
+# --- Item icons ---
+icons = {
+    "icon_iron_ore": [
+        "................", "................", "................", "................",
+        ".....kkkkk......", "....ksOossk.....", "...ksoOsssok....", "...kssssoOSk....",
+        "...kOosssssk....", "....kSSsoSk.....", ".....kkkkk......", "................",
+        "................", "................", "................", "................"],
+    "icon_coal": [
+        "................", "................", "................", "................",
+        ".....eeeee......", "....eCcccCe.....", "...ecccCcccce...", "...eCcccccCce...",
+        "...eccCccccce...", "....eccccCe.....", ".....eeeee......", "................",
+        "................", "................", "................", "................"],
+    "icon_log": [
+        "................", "................", "................", "................",
+        "................", "...bbbbbbbbtt...", "..bBbbBbbbbtbt..", "..bbbbbbBbbtBt..",
+        "..bBbbbbbbbtbt..", "...bbbbbbbbtt...", "................", "................",
+        "................", "................", "................", "................"],
+    "icon_sapling": [
+        "................", "................", "................", ".......L........",
+        "......LlL.......", ".....LlLlL......", "......lLl.......", ".......b........",
+        ".......b........", "......PPP.......", ".....PPPPP......", "................",
+        "................", "................", "................", "................"],
+    "icon_iron_ingot": [
+        "................", "................", "................", "................",
+        "................", "................", "....iiiiiiii....", "...iIiiiiiiIi...",
+        "..IIIIIIIIIIII..", "..IkkkkkkkkkkI..", "................", "................",
+        "................", "................", "................", "................"],
+    "icon_plank": [
+        "................", "................", "................", "................",
+        "................", "..tttttttttttt..", "..tbbbbbbbbbbt..", "..bBbbbbBbbbbb..",
+        "..BBBBBBBBBBBB..", "................", "................", "................",
+        "................", "................", "................", "................"],
+    "icon_handle": [
+        "................", "................", "............t...", "...........tb...",
+        "..........tb....", ".........tb.....", "........tb......", ".......tb.......",
+        "......tb........", ".....tb.........", "....tb..........", "...tb...........",
+        "...B............", "................", "................", "................"],
+    "icon_iron_sword": [
+        "................", "............ii..", "...........iIi..", "..........iIi...",
+        ".........iIi....", "........iIi.....", ".......iIi......", "......iIi.......",
+        "..k..iIi........", "...kiIi.........", "....kk..........", "...bkk..........",
+        "..bb..k.........", ".bb.............", "................", "................"],
+    "icon_wooden_shield": [
+        "................", "................", "...IIIIIIIIII...", "...ItbtbtbtbI...",
+        "...IbtbtbtbtI...", "...ItbtiitbtI...", "...IbtbiibtbI...", "...ItbtbtbtbI...",
+        "....IbtbtbtI....", "....ItbtbtbI....", ".....IbtbtI.....", "......ItbI......",
+        ".......II.......", "................", "................", "................"],
+}
+for name, rows in icons.items():
+    save(from_rows(rows), name)
+
+print("Wrote placeholder art to", OUT)
