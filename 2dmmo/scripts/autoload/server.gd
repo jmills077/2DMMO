@@ -219,6 +219,22 @@ func request_craft(recipe_id: String) -> void:
 		toast(peer, "Crafted %s" % GameData.item_name(result.item))
 
 
+## Testing shortcut (F9): every rock, sheep, deer, herb and tree comes back.
+## Only works in test builds (running from the Godot editor), never on a
+## released server.
+@rpc("any_peer", "call_local", "reliable")
+func request_refill_resources() -> void:
+	if not multiplayer.is_server():
+		return
+	if not OS.is_debug_build():
+		toast(sender(), "Refilling is only for testing")
+		return
+	for node: Node in get_tree().get_nodes_in_group("persist"):
+		node.apply_save_state({})
+		_broadcast_state(node)
+	toast_all("%s refilled every resource (F9)" % name_of(sender()))
+
+
 @rpc("any_peer", "call_local", "reliable")
 func request_save() -> void:
 	if multiplayer.is_server():

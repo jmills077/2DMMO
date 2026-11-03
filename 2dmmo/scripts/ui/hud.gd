@@ -62,6 +62,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		if Net.mode != "":
 			Server.request_save.rpc_id(1)
 		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("refill_resources"):
+		if Net.mode != "":
+			Server.request_refill_resources.rpc_id(1)
+		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("crafting"):
 		_set_crafting_visible(not _craft_panel.visible)
 		get_viewport().set_input_as_handled()

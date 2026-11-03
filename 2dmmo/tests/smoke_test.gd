@@ -284,6 +284,14 @@ func _ready() -> void:
 		await get_tree().physics_frame
 	check(player._gather_state == "", "letting the bar run out resets it")
 
+	print("Testing shortcut")
+	Server.check_gather_time = false
+	gather(iron)
+	gather(tree)
+	check(iron.get_interaction() == "" and tree.get_interaction() == "use", "rock and tree used up")
+	Server.request_refill_resources()
+	check(iron.get_interaction() == "gather" and tree.get_interaction() == "gather", "F9 refills every resource")
+
 	print("Movement")
 	var hud: Node = main.get_node("HUD")
 	var fails := [0]

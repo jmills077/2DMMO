@@ -28,6 +28,7 @@ To play with someone on your home network, start the game with `-- --host` on yo
 | C | Open or close your crafting menu (craft anywhere) |
 | F5 | Save the world (the host also saves every minute, when anyone leaves, and when it closes) |
 | Esc | Close menus |
+| F9 | Testing only: refill every rock, sheep, deer, herb and tree for everyone |
 
 ## Milestone 1: crafting prototype
 

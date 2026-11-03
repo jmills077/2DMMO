@@ -12,6 +12,7 @@ const BINDINGS := {
 	"inventory": [KEY_I, KEY_TAB],
 	"crafting": [KEY_C],
 	"save_game": [KEY_F5],
+	"refill_resources": [KEY_F9],
 	"close_menu": [KEY_ESCAPE],
 }
 
