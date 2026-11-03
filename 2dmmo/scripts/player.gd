@@ -20,7 +20,7 @@ const SNAP_DISTANCE := 48.0
 	set(value):
 		player_name = value
 		if _name_label:
-			_name_label.text = value
+			_update_label()
 ## Where this character is, as sent over the network.
 @export var sync_position := Vector2.ZERO
 @export var facing_left := false
@@ -52,6 +52,7 @@ func _ready() -> void:
 	_name_label.add_theme_color_override("font_outline_color", Color.BLACK)
 	_name_label.add_theme_constant_override("outline_size", 2)
 	add_child(_name_label)
+	Town.changed.connect(_update_label)
 
 	var circle := CircleShape2D.new()
 	circle.radius = REACH
@@ -62,13 +63,22 @@ func _ready() -> void:
 	if is_local():
 		camera.make_current()
 		add_to_group("local_player")
-		_name_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.5))
 		Events.local_player_ready.emit(self)
+	_update_label()
 
 
 ## True for the character this window controls.
 func is_local() -> bool:
 	return multiplayer.multiplayer_peer != null and is_multiplayer_authority()
+
+
+## The name over the character, in its guild's color.
+func _update_label() -> void:
+	var guild := GameData.get_guild(Town.guild_of(player_name))
+	_name_label.text = player_name
+	var color := Color(str(guild.color)) if not guild.is_empty() else Color.WHITE
+	_name_label.add_theme_color_override("font_color", color)
+	_name_label.tooltip_text = str(guild.get("member", ""))
 
 
 func _physics_process(delta: float) -> void:

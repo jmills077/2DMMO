@@ -42,10 +42,20 @@ To play with someone on your home network, start the game with `-- --host` on yo
 - The host saves the world plus each player's position and bag by name, so joining again as the same name picks up where you left off.
 - The milestone 1 single-player save is not carried over.
 
+## Milestone 3: towns and guilds
+
+- The first time you play a character, you choose one of six crafting guilds: Blacksmith, Woodworker, Tailor, Leatherworker, Apothecary or Engineer. It is permanent. Names over players' heads are in their guild's color.
+- **Town stockpile** (the chest in town): donate raw materials. Each item is 1 point of contribution. Gear can't be donated.
+- **Guild halls** (the six banners along the south of town): see a guild's members, contributions and leader. The top contributor leads the guild.
+- **Round table**: a guild leader proposes an upgrade the stockpile can pay for. Each guild's leader votes for their guild, and members advise their leader with their own vote. It passes when more than half of the guilds say yes, or when the 5 minute vote ends with more yes than no. The cost comes out of the stockpile and the building appears in town.
+- Upgrades so far: Palisade, Watchtower and Supply Silo. They don't do anything yet; invasions in milestone 4 will use them.
+
 ## Changing the game without code
 
 - **Items:** `2dmmo/data/items.json` (name, icon, stack size, stats)
 - **Recipes:** `2dmmo/data/recipes.json` (station, inputs, output, high quality chance)
+- **Guilds:** `2dmmo/data/guilds.json` (name, color, description)
+- **Town upgrades:** `2dmmo/data/upgrades.json` (cost, art, where it is drawn on the map)
 - **Art:** replace any PNG in `2dmmo/art/` with your own 16 x 16 art of the same name and size.
 - **Map:** open `scenes/main.tscn` and paint on the Ground layer, or drag rocks and trees around.
 

@@ -61,6 +61,15 @@ func _miner() -> void:
 	await _gather(rock, 1.6)
 	check(Inventory.count_of("iron_ore") > 0, "mined iron ore through the server")
 	check(rock.get_interaction() == "", "rock shows as depleted for the miner")
+	Town.request_join_guild.rpc_id(1, "blacksmith")
+	await get_tree().create_timer(0.3).timeout
+	check(Town.guild_of("Miner") == "blacksmith", "joined the Blacksmiths")
+	var stockpile: Node2D = _world().get_node("Entities/Stockpile")
+	player.global_position = stockpile.global_position + Vector2(0, 12)
+	await get_tree().create_timer(0.3).timeout
+	Town.request_donate.rpc_id(1, Server.path_of(stockpile), "iron_ore", 1)
+	await get_tree().create_timer(0.3).timeout
+	check(Town.stock_of("iron_ore") == 1, "donated ore to the town")
 	# Stay online so the watcher can see this character.
 	await get_tree().create_timer(8.0).timeout
 
@@ -78,7 +87,11 @@ func _watcher() -> void:
 	check(miner != null, "sees the miner by name")
 	if miner:
 		await get_tree().create_timer(1.0).timeout
-		check(miner.global_position.distance_to(rock.global_position) < 20.0, "miner is shown where it really stands")
+		var stockpile: Node2D = _world().get_node("Entities/Stockpile")
+		check(miner.global_position.distance_to(stockpile.global_position) < 20.0, "miner is shown where it really stands")
+	check(Town.guild_of("Miner") == "blacksmith" and Town.is_online("Miner"), "sees the miner's guild")
+	check(Town.stock_of("iron_ore") == 1, "sees the town stockpile the miner filled")
+	check(Town.is_leader("Miner"), "miner leads the Blacksmiths")
 	await _gather(rock, 1.6)
 	check(Inventory.count_of("iron_ore") == 0, "cannot mine a depleted rock")
 	check(toasts.has("Someone got there first"), "told someone got there first")
@@ -88,11 +101,48 @@ func _watcher() -> void:
 
 
 func _shot() -> void:
-	var bench: Node2D = _world().get_node("Entities/Workbench")
-	var offset := Vector2(-12, 16) if Net.mode == "host" else Vector2(12, 16)
-	player.global_position = bench.global_position + offset
-	await get_tree().create_timer(4.0).timeout
-	var path := "user://shot_%s.png" % Net.player_name
+	# Screenshot 1: the guild picker, before choosing.
+	await get_tree().create_timer(2.0).timeout
+	_save_shot("picker")
+	var host := Net.mode == "host"
+	Town.request_join_guild.rpc_id(1, "blacksmith" if host else "woodworker")
+	await get_tree().create_timer(1.0).timeout
+	var stockpile: Node2D = _world().get_node("Entities/Stockpile")
+	var table: Node2D = _world().get_node("Entities/RoundTable")
+	if host:
+		# Fill the stockpile, build the watchtower and open a vote on the silo.
+		Server.bag_of(1).add_item("log", 30)
+		Server.bag_of(1).add_item("plank", 20)
+		Server.bag_of(1).add_item("iron_ingot", 6)
+		Server.send_bag(1)
+		player.global_position = stockpile.global_position + Vector2(0, 12)
+		await get_tree().create_timer(0.3).timeout
+		for id: String in ["log", "plank", "iron_ingot"]:
+			Town.request_donate(Server.path_of(stockpile), id, 99)
+		Town.state.players["Ghost"] = {"guild": "tailor", "contribution": 0}
+		player.global_position = table.global_position + Vector2(0, 12)
+		await get_tree().create_timer(0.3).timeout
+		Town.request_propose(Server.path_of(table), "watchtower")
+		Town.state.proposal.ends_at = 0.0
+		await get_tree().create_timer(1.5).timeout
+		Town.request_propose(Server.path_of(table), "silo")
+		await get_tree().create_timer(1.0).timeout
+		Events.town_object_opened.emit("round_table", "", Server.path_of(table))
+	else:
+		await get_tree().create_timer(4.0).timeout
+		var hall: Node2D = _world().get_node("Entities/Hall_blacksmith")
+		player.global_position = hall.global_position + Vector2(0, -14)
+		await get_tree().create_timer(0.5).timeout
+		Events.town_object_opened.emit("guild_hall", "blacksmith", Server.path_of(hall))
+	await get_tree().create_timer(1.5).timeout
+	_save_shot("panel")
+	Events.town_object_opened.emit("stockpile", "", Server.path_of(stockpile))
+	await get_tree().create_timer(0.5).timeout
+	_save_shot("stockpile")
+	await get_tree().create_timer(3.0).timeout
+
+
+func _save_shot(label: String) -> void:
+	var path := "user://shot_%s_%s.png" % [Net.player_name, label]
 	get_viewport().get_texture().get_image().save_png(path)
 	print("BOT shot saved ", ProjectSettings.globalize_path(path))
-	await get_tree().create_timer(2.0).timeout

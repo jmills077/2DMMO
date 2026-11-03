@@ -13,7 +13,7 @@ HOST=$!
 sleep 2
 "$GODOT" --headless --path . -- --join=127.0.0.1 --port=$PORT --name=Miner --bot=miner > "$LOG/miner.log" 2>&1 &
 MINER=$!
-sleep 5
+sleep 6
 "$GODOT" --headless --path . -- --join=127.0.0.1 --port=$PORT --name=Watcher --bot=watcher > "$LOG/watcher.log" 2>&1 &
 WATCHER=$!
 

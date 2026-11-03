@@ -26,6 +26,7 @@ var _status: Label
 var _connect_panel: PanelContainer
 var _name_field: LineEdit
 var _address_field: LineEdit
+var _town_ui: Control
 
 
 func _ready() -> void:
@@ -239,10 +240,12 @@ func _on_join_pressed() -> void:
 
 func _close_all() -> void:
 	_set_inventory_visible(false)
+	_town_ui.close()
 
 
 func _update_blocking() -> void:
-	Events.ui_blocking = _inventory_panel.visible or _craft_panel.visible or _connect_panel.visible
+	Events.ui_blocking = _inventory_panel.visible or _craft_panel.visible or _connect_panel.visible \
+			or _town_ui.is_open()
 	_prompt.visible = _prompt.text != "" and not Events.ui_blocking
 
 
@@ -353,6 +356,10 @@ func _build_layout() -> void:
 	_craft_list.add_theme_constant_override("separation", 4)
 	craft[1].add_child(_craft_list)
 	_root.add_child(_craft_panel)
+
+	_town_ui = preload("res://scripts/ui/town_ui.gd").new()
+	_root.add_child(_town_ui)
+	_town_ui.open_changed.connect(_update_blocking)
 
 	var menu: Array = _panel("Play")
 	_connect_panel = menu[0]

@@ -29,6 +29,10 @@ func use(target: Node2D) -> void:
 	Server.request_use(Server.path_of(target))
 
 
+func use_spot(target: Node2D) -> void:
+	player.global_position = target.global_position + Vector2(0, 12)
+
+
 func craft(recipe_id: String) -> void:
 	Server.request_craft(recipe_id)
 
@@ -123,6 +127,46 @@ func _ready() -> void:
 	check(last.data.stats.damage > 10 or last.data.stats.speed > 5, "high quality raised a stat")
 	check(last.data.stats.durability == 100, "durability is never boosted")
 
+	print("Town and guilds")
+	check(Town.guild_of("Smoke") == "", "new player has no guild yet")
+	Town.request_join_guild("blacksmith")
+	check(Town.guild_of("Smoke") == "blacksmith", "joined the Blacksmiths")
+	Town.request_join_guild("woodworker")
+	check(Town.guild_of("Smoke") == "blacksmith", "guild can't be changed")
+	var stockpile: Node2D = main.get_node("Entities/Stockpile")
+	var table: Node2D = main.get_node("Entities/RoundTable")
+	var logs := Inventory.count_of("log")
+	player.global_position = Vector2(50, 50)
+	Town.request_donate(Server.path_of(stockpile), "log", 1)
+	check(Town.stock_of("log") == 0, "donating away from the stockpile is refused")
+	use_spot(stockpile)
+	Town.request_donate(Server.path_of(stockpile), "log", 2)
+	check(Town.stock_of("log") == 2 and Inventory.count_of("log") == logs - 2, "donated logs to the stockpile")
+	check(Town.contribution_of("Smoke") == 2, "donation counts as contribution")
+	Town.request_donate(Server.path_of(stockpile), "iron_sword", 1)
+	check(Town.stock_of("iron_sword") == 0, "gear can't be donated")
+	check(Town.is_leader("Smoke"), "top contributor leads the guild")
+	Town.state.players["Ghost"] = {"guild": "woodworker", "contribution": 0}
+	check(Town.active_guilds().size() == 2, "two guilds have members")
+	Town.state.stockpile = {"log": 15, "plank": 10, "iron_ingot": 4}
+	Town.request_propose(Server.path_of(table), "watchtower")
+	check(Town.state.proposal.is_empty(), "proposing away from the round table is refused")
+	use_spot(table)
+	Town.request_propose(Server.path_of(table), "palisade")
+	check(Town.state.proposal.is_empty(), "can't propose what the stockpile can't pay for")
+	Town.request_propose(Server.path_of(table), "watchtower")
+	check(not Town.state.proposal.is_empty(), "leader proposed the watchtower")
+	check(not Town.is_built("watchtower"), "one of two guilds is not a majority")
+	Town.state.proposal.ends_at = 0.0
+	Town._process(0.0)
+	check(Town.is_built("watchtower"), "vote passed when time ran out with more yes than no")
+	check(Town.stock_of("log") == 7 and Town.stock_of("iron_ingot") == 2, "upgrade cost taken from the stockpile")
+	check(main.get_node_or_null("Entities/Upgrade_watchtower_29_11") != null, "watchtower appears in town")
+	Town.request_propose(Server.path_of(table), "silo")
+	Town.request_vote(Server.path_of(table), false)
+	check(Town.state.proposal.is_empty() and not Town.is_built("silo"), "leader can vote down a proposal")
+	Town.state.players.erase("Ghost")
+
 	print("Saving")
 	player.global_position = Vector2(123, 145)
 	gather(iron)
@@ -145,6 +189,8 @@ func _ready() -> void:
 	player = main.get_node("Entities/1")
 	check(player.global_position.distance_to(Vector2(123, 145)) < 0.1, "player position restored on rejoin")
 	check(Inventory.count_of("iron_sword") == 2, "crafted gear restored on rejoin")
+	check(Town.guild_of("Smoke") == "blacksmith", "guild restored on restart")
+	check(Town.is_built("watchtower"), "built upgrades restored on restart")
 
 	print("Interaction from the player")
 	player.global_position = iron.global_position + Vector2(0, 12)

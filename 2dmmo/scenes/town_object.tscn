@@ -1,0 +1,25 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/world/town_object.gd" id="1_46t3w"]
+[ext_resource type="Texture2D" path="res://art/stockpile.png" id="2_8k641"]
+[ext_resource type="Texture2D" path="res://art/banner_cloth.png" id="3_l4431"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_wxsav"]
+size = Vector2(12, 6)
+
+[node name="TownObject" type="StaticBody2D" unique_id=51024281]
+collision_layer = 3
+collision_mask = 0
+script = ExtResource("1_46t3w")
+texture = ExtResource("2_8k641")
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1692148381]
+texture = ExtResource("2_8k641")
+
+[node name="Cloth" type="Sprite2D" parent="." unique_id=1547969083]
+visible = false
+texture = ExtResource("3_l4431")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=959443029]
+position = Vector2(0, 4)
+shape = SubResource("RectangleShape2D_wxsav")

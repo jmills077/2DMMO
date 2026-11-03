@@ -1,0 +1,8 @@
+[
+	{ "id": "blacksmith", "name": "Blacksmiths", "member": "Blacksmith", "color": "#d0d4dc", "description": "Smelt ore and forge metal weapons, armor and tools." },
+	{ "id": "woodworker", "name": "Woodworkers", "member": "Woodworker", "color": "#c8945a", "description": "Saw lumber and build bows, shields, handles and town structures." },
+	{ "id": "tailor", "name": "Tailors", "member": "Tailor", "color": "#c86ad0", "description": "Weave cloth and string for robes, bags and bowstrings." },
+	{ "id": "leatherworker", "name": "Leatherworkers", "member": "Leatherworker", "color": "#a0623a", "description": "Tan hides into light armor, straps and quivers." },
+	{ "id": "apothecary", "name": "Apothecaries", "member": "Apothecary", "color": "#6ad08c", "description": "Brew potions, salves and dyes from herbs." },
+	{ "id": "engineer", "name": "Engineers", "member": "Engineer", "color": "#e0b040", "description": "Build mechanisms, siege defenses and gadgets." }
+]
