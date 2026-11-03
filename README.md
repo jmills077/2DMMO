@@ -31,6 +31,7 @@ To play with someone on your home network, start the game with `-- --host` on yo
 | F5 | Save the world (the host also saves every minute, when anyone leaves, and when it closes) |
 | Esc | Close menus |
 | F9 | Testing only: refill every rock, sheep, deer, herb and tree for everyone |
+| F10 | Testing only: start an invasion now |
 
 ## Milestone 1: crafting prototype
 
@@ -74,6 +75,16 @@ To play with someone on your home network, start the game with `-- --host` on yo
 - **Wolves** in the south-west woods attack anyone who comes close and give up if you lead them far from home.
 - **Health** is the red bar at the top left. It comes back slowly when nothing has hurt you for a few seconds. A healing salve heals 25 straight away.
 - **Dying**: your body stays where you fell, lying on its side, and your spirit appears at the graveyard just west of town. A line at the top of the screen says which way your body is. Walk back to it and press E to come back to life there with half your health. Spirits can't gather, craft, trade or fight.
+
+## Milestone 4, part 2: invasions
+
+- For testing, an invasion comes every 10 minutes (the countdown is at the top of the screen), and F10 starts one straight away. The real schedule (1 day, 2 days, 4 days...) comes with the tester server.
+- Goblin raiders walk in from both ends of the road and attack the town square. They never attack players. Invasion 1 has 3 raiders, and each one after brings 2 more (up to 15).
+- During an invasion the top of the screen shows the raiders left and the town's health (300). Kill every raider and the town holds.
+- **Palisade**: raiders are stuck at its gates for 8 seconds, hacking through.
+- **Watchtower**: shoots the nearest raider within about 7 tiles every 2 seconds.
+- **Spike traps** (engineers craft them): click one in your bag to set it where you stand. The first raider to step on it takes 15 damage.
+- **If the town's health runs out**: a built Supply Silo saves the town. The silo is destroyed and the stockpile loses half its stock. With no silo the town falls: the stockpile is emptied and every upgrade is destroyed.
 
 ## Changing the game without code
 

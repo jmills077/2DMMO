@@ -387,6 +387,77 @@ func _ready() -> void:
 	check(Combat._hp[1] == 35 and gear_bag.count_of("healing_salve") == 0, "a healing salve heals 25")
 	Combat.reset_player(1)
 
+	print("Invasions")
+	check(not Invasion.state.active and Invasion.state.seconds_left > 0, "the next invasion is counting down")
+	Invasion.request_start_now()
+	check(Invasion.state.active and Invasion.state.raiders_left == 3, "F10 starts invasion 1 with 3 raiders")
+	while Invasion._to_spawn > 0:
+		Invasion._spawn_left = 0.0
+		await get_tree().physics_frame
+	await get_tree().physics_frame
+	var alive := func() -> Array: return Invasion.raiders().filter(func(r: Node) -> bool: return r.is_alive())
+	check(alive.call().size() == 3, "the raiders appear at both ends of the road")
+	var raider: Node2D = alive.call()[0]
+	var start_distance := raider.global_position.distance_to(Invasion.TOWN_CENTER)
+	for i in 20:
+		await get_tree().physics_frame
+	check(raider.global_position.distance_to(Invasion.TOWN_CENTER) < start_distance, "raiders march toward the town square")
+	raider.global_position = Invasion.TOWN_CENTER + Vector2(10, 0)
+	raider._attack_left = 0.0
+	for i in 2:
+		await get_tree().physics_frame
+	check(Invasion.state.town_health == Invasion.TOWN_HEALTH - 4, "a raider in the square hurts the town")
+	check(Combat._hp[1] == Combat.BASE_HEALTH, "raiders don't attack players")
+	raider.take_damage(99, 1)
+	check(raider.state == "gone" and Invasion.state.raiders_left == 2, "killing a raider counts down")
+	Town.state.built.append("watchtower")
+	var r2: Node2D = alive.call()[0]
+	var r3: Node2D = alive.call()[1]
+	r2.global_position = Invasion.WATCHTOWER + Vector2(0, 30)
+	r3.global_position = Vector2(2 * 16, 15 * 16 + 8)
+	Invasion._watchtower_shoot()
+	check(r2.health == 25 - Invasion.WATCHTOWER_DAMAGE, "the watchtower shoots the nearest raider")
+	gear_bag.add_item("spike_trap", 1)
+	player.global_position = Vector2(10 * 16 + 8, 15 * 16 + 8)
+	var trap_index := -1
+	for i in gear_bag.slots.size():
+		if gear_bag.slots[i].id == "spike_trap":
+			trap_index = i
+	Invasion.request_place_trap(trap_index)
+	check(Invasion.traps.size() == 1 and gear_bag.count_of("spike_trap") == 0, "clicking a spike trap in the bag sets it where you stand")
+	await get_tree().process_frame
+	check(main.get_node("Entities").get_children().any(func(n: Node) -> bool: return n.name.begins_with("Trap_")), "the trap shows on the ground")
+	r3.global_position = Invasion.traps.values()[0]
+	Invasion._check_traps()
+	check(r3.health == 25 - Invasion.TRAP_DAMAGE and Invasion.traps.is_empty(), "a trap hurts the first raider on it and is used up")
+	Town.state.built.append("palisade")
+	r3.global_position = Invasion.GATES[0] + Vector2(-3, 0)
+	for i in 5:
+		await get_tree().physics_frame
+	check(r3._wall_wait > 0.0 and r3.global_position.distance_to(Invasion.GATES[0]) <= 6.0, "the palisade holds raiders at its gate")
+	for r: Node2D in alive.call():
+		r.take_damage(99, 1)
+	check(not Invasion.state.active, "killing every raider ends the invasion")
+	Town.state.built = ["silo", "palisade"]
+	Town.state.stockpile = {"log": 10}
+	Town.publish()
+	await get_tree().process_frame
+	check(main.get_node("Entities").get_children().any(func(n: Node) -> bool: return n.name.begins_with("Upgrade_silo")), "a built silo shows on the map")
+	Invasion.start()
+	check(Invasion.state.raiders_left == 5, "the next invasion brings more raiders")
+	Invasion.hurt_town(9999)
+	check(not Invasion.state.active and not Town.is_built("silo") and Town.is_built("palisade") and Town.stock_of("log") == 5,
+			"if the town falls, the silo saves it once: silo gone, half the stock lost")
+	await get_tree().process_frame
+	check(main.get_node("Entities").get_children().all(func(n: Node) -> bool: return not n.name.begins_with("Upgrade_silo")), "the silo disappears from the map")
+	Invasion.start()
+	Invasion.hurt_town(9999)
+	check(Town.state.built.is_empty() and Town.state.stockpile.is_empty(), "without a silo the town falls: stock and upgrades lost")
+	Server.save_world()
+	var saved_world: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(SAVE))
+	check(int(saved_world.invasion.number) == 3, "the invasion count is saved")
+	Invasion.reset()
+
 	print("Testing shortcut")
 	Server.check_gather_time = false
 	gather(iron)

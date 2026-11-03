@@ -355,6 +355,13 @@ func _place_buildings() -> void:
 	var entities: Node = Server.world.get_node_or_null("Entities") if Server.world else null
 	if entities == null:
 		return
+	# Buildings destroyed in an invasion come down.
+	for upgrade_id: String in _rendered.keys():
+		if not upgrade_id in state.built:
+			_rendered.erase(upgrade_id)
+			for node: Node in entities.get_children():
+				if node.name.begins_with("Upgrade_%s_" % upgrade_id):
+					node.queue_free()
 	for upgrade_id: String in state.built:
 		if _rendered.has(upgrade_id):
 			continue
