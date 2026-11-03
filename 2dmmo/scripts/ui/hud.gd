@@ -1,6 +1,7 @@
 extends CanvasLayer
-## Everything drawn on top of the world: the interaction prompt, the gather bar,
-## messages, the inventory and the crafting panel.
+## Everything drawn on top of the world: the connection line, the interaction
+## prompt, the gather bar, messages, the inventory, the crafting panel and the
+## host/join menu.
 ## The layout is built in code so it stays easy to restyle in one place.
 
 const FONT_SIZE := 8
@@ -21,6 +22,10 @@ var _craft_panel: PanelContainer
 var _craft_title: Label
 var _craft_list: VBoxContainer
 var _current_station := ""
+var _status: Label
+var _connect_panel: PanelContainer
+var _name_field: LineEdit
+var _address_field: LineEdit
 
 
 func _ready() -> void:
@@ -29,15 +34,28 @@ func _ready() -> void:
 	Inventory.changed.connect(_refresh_crafting)
 	Events.toast.connect(_show_toast)
 	Events.station_opened.connect(_open_station)
-	var player := get_tree().get_first_node_in_group("player")
-	if player:
-		player.target_changed.connect(_on_target_changed)
-		player.gather_progress.connect(_on_gather_progress)
+	Events.local_player_ready.connect(_on_local_player_ready)
+	Events.status_changed.connect(func(text: String) -> void: _status.text = text)
+	Events.show_connect_menu.connect(_show_connect_menu)
+	_status.text = Net.status
 	_refresh_inventory()
 
 
+func _on_local_player_ready(player: Node) -> void:
+	player.target_changed.connect(_on_target_changed)
+	player.gather_progress.connect(_on_gather_progress)
+	_connect_panel.visible = false
+	_update_blocking()
+
+
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("inventory"):
+	if _connect_panel.visible:
+		return
+	if event.is_action_pressed("save_game"):
+		if Net.mode != "":
+			Server.request_save.rpc_id(1)
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("inventory"):
 		_set_inventory_visible(not _inventory_panel.visible)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("close_menu"):
@@ -181,21 +199,40 @@ func _make_recipe_row(recipe: Dictionary) -> Control:
 	var button := Button.new()
 	button.text = "Craft"
 	button.add_theme_font_size_override("font_size", FONT_SIZE)
-	button.disabled = not Crafting.can_craft(recipe)
+	button.disabled = not Crafting.can_craft(Inventory.bag, recipe)
 	button.focus_mode = Control.FOCUS_NONE
 	button.pressed.connect(_craft.bind(recipe))
 	row.add_child(button)
 	return row
 
 
+## The server crafts and replies with a message and the updated bag.
 func _craft(recipe: Dictionary) -> void:
-	var result := Crafting.craft(recipe)
-	if not result.ok:
-		_show_toast(result.reason)
-	elif result.high_quality:
-		_show_toast("High quality %s!" % GameData.item_name(result.item))
+	Server.request_craft.rpc_id(1, str(recipe.id))
+
+
+# --- Host or join menu (shown when the game is not started from the editor) ---
+
+func _show_connect_menu() -> void:
+	_connect_panel.visible = true
+	_update_blocking()
+
+
+func _on_host_pressed() -> void:
+	Net.player_name = _name_field.text
+	if Net.host(true):
+		_connect_panel.visible = false
+		_update_blocking()
 	else:
-		_show_toast("Crafted %s" % GameData.item_name(result.item))
+		_status.text = "Could not host: port %d is in use" % Net.port()
+
+
+func _on_join_pressed() -> void:
+	Net.player_name = _name_field.text
+	var address := _address_field.text.strip_edges()
+	Net.join(address if address != "" else "127.0.0.1")
+	_connect_panel.visible = false
+	_update_blocking()
 
 
 # --- Helpers ---
@@ -205,7 +242,7 @@ func _close_all() -> void:
 
 
 func _update_blocking() -> void:
-	Events.ui_blocking = _inventory_panel.visible or _craft_panel.visible
+	Events.ui_blocking = _inventory_panel.visible or _craft_panel.visible or _connect_panel.visible
 	_prompt.visible = _prompt.text != "" and not Events.ui_blocking
 
 
@@ -264,6 +301,11 @@ func _build_layout() -> void:
 	help.modulate.a = 0.75
 	_root.add_child(help)
 
+	_status = _label("")
+	_status.position = Vector2(4, 12)
+	_status.add_theme_color_override("font_color", Color(1.0, 0.9, 0.5))
+	_root.add_child(_status)
+
 	_prompt = _label("")
 	_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_anchor(_prompt, Vector2(0.5, 1.0), Rect2(-150, -26, 300, 12))
@@ -311,3 +353,30 @@ func _build_layout() -> void:
 	_craft_list.add_theme_constant_override("separation", 4)
 	craft[1].add_child(_craft_list)
 	_root.add_child(_craft_panel)
+
+	var menu: Array = _panel("Play")
+	_connect_panel = menu[0]
+	_anchor(_connect_panel, Vector2(0.5, 0.5), Rect2(-90, -60, 180, 0))
+	menu[1].add_child(_label("Your name (blank for Tester1, Tester2...)"))
+	_name_field = _line_edit("")
+	menu[1].add_child(_name_field)
+	menu[1].add_child(_label("Server address (to join)"))
+	_address_field = _line_edit("127.0.0.1")
+	menu[1].add_child(_address_field)
+	var buttons := HBoxContainer.new()
+	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	for pair: Array in [["Host a game", _on_host_pressed], ["Join", _on_join_pressed]]:
+		var button := Button.new()
+		button.text = pair[0]
+		button.add_theme_font_size_override("font_size", FONT_SIZE)
+		button.pressed.connect(pair[1])
+		buttons.add_child(button)
+	menu[1].add_child(buttons)
+	_root.add_child(_connect_panel)
+
+
+func _line_edit(text: String) -> LineEdit:
+	var field := LineEdit.new()
+	field.text = text
+	field.add_theme_font_size_override("font_size", FONT_SIZE)
+	return field

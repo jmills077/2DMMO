@@ -1,24 +1,32 @@
 extends Node
 ## Turns recipe inputs into outputs, including the "high quality" roll.
 ## A high quality item gets one random stat (not durability) raised by 10%, at least +1.
+## Only the server calls craft(); screens call can_craft() to grey out buttons.
 
 const HIGH_QUALITY_BONUS := 0.10
 
 
-func can_craft(recipe: Dictionary) -> bool:
+func find_recipe(recipe_id: String) -> Dictionary:
+	for recipe: Dictionary in GameData.recipes:
+		if recipe.get("id") == recipe_id:
+			return recipe
+	return {}
+
+
+func can_craft(bag: RefCounted, recipe: Dictionary) -> bool:
 	var inputs: Dictionary = recipe.get("inputs", {})
 	for id: String in inputs:
-		if Inventory.count_of(id) < int(inputs[id]):
+		if bag.count_of(id) < int(inputs[id]):
 			return false
 	return true
 
 
 ## Returns {"ok": bool, "item": String, "count": int, "high_quality": bool, "reason": String}.
-func craft(recipe: Dictionary) -> Dictionary:
+func craft(bag: RefCounted, recipe: Dictionary) -> Dictionary:
 	var output: Dictionary = recipe.get("output", {})
 	var out_id := str(output.get("item", ""))
 	var out_count := int(output.get("count", 1))
-	if not can_craft(recipe):
+	if not can_craft(bag, recipe):
 		return {"ok": false, "reason": "Missing materials"}
 
 	var data := {}
@@ -38,11 +46,11 @@ func craft(recipe: Dictionary) -> Dictionary:
 				stats[stat] = maxi(int(ceil(stats[stat] * (1.0 + HIGH_QUALITY_BONUS))), stats[stat] + 1)
 				data.boosted_stat = stat
 
-	if not Inventory.has_space_for(out_id, out_count, data):
+	if not bag.has_space_for(out_id, out_count, data):
 		return {"ok": false, "reason": "Bag full"}
 
 	var inputs: Dictionary = recipe.get("inputs", {})
 	for id: String in inputs:
-		Inventory.remove_item(id, int(inputs[id]))
-	Inventory.add_item(out_id, out_count, data)
+		bag.remove_item(id, int(inputs[id]))
+	bag.add_item(out_id, out_count, data)
 	return {"ok": true, "item": out_id, "count": out_count, "high_quality": high_quality, "reason": ""}

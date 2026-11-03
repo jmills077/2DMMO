@@ -5,6 +5,12 @@ extends Node
 signal toast(text: String)
 ## A crafting station was used. The HUD opens its crafting panel.
 signal station_opened(station_id: String, display_name: String)
+## The player this window controls has appeared in the world.
+signal local_player_ready(player: Node)
+## The connection line at the top of the screen changed.
+signal status_changed(text: String)
+## No launch option said whether to host or join, so ask on screen.
+signal show_connect_menu
 
 ## True while a menu is open, so the player stops moving.
 var ui_blocking := false

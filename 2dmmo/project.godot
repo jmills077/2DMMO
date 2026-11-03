@@ -22,7 +22,8 @@ InputSetup="*res://scripts/autoload/input_setup.gd"
 GameData="*res://scripts/autoload/game_data.gd"
 Inventory="*res://scripts/autoload/inventory.gd"
 Crafting="*res://scripts/autoload/crafting.gd"
-SaveGame="*res://scripts/autoload/save_game.gd"
+Net="*res://scripts/autoload/net.gd"
+Server="*res://scripts/autoload/server.gd"
 
 [display]
 

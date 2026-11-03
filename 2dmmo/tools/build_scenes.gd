@@ -111,6 +111,20 @@ func _build_player() -> Node:
 	camera.position_smoothing_speed = 8.0
 	_add(player, camera, player)
 
+	# Sends this character's position to the other windows. The player who
+	# controls the character owns it (set in player.gd).
+	var sync := MultiplayerSynchronizer.new()
+	sync.name = "Sync"
+	var config := SceneReplicationConfig.new()
+	for property: String in [".:sync_position", ".:facing_left"]:
+		config.add_property(NodePath(property))
+		config.property_set_spawn(NodePath(property), true)
+		config.property_set_replication_mode(NodePath(property),
+				SceneReplicationConfig.REPLICATION_MODE_ALWAYS if property == ".:sync_position"
+				else SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE)
+	sync.replication_config = config
+	_add(player, sync, player)
+
 	return player
 
 
@@ -172,9 +186,11 @@ func _build_main(tileset: TileSet) -> Node:
 	entities.y_sort_enabled = true
 	_add(main, entities, main)
 
-	var player: Node2D = load("res://scenes/player.tscn").instantiate()
-	player.position = _tile_center(Vector2i(23, 17))
-	_add(entities, player, main)
+	# Players are added while the game runs (see main.gd and server.gd).
+	var spawner := MultiplayerSpawner.new()
+	spawner.name = "PlayerSpawner"
+	_add(main, spawner, main)
+	spawner.spawn_path = spawner.get_path_to(entities)
 
 	var station_scene: PackedScene = load("res://scenes/station.tscn")
 	var furnace: Node2D = station_scene.instantiate()

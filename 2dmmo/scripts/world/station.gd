@@ -12,6 +12,7 @@ extends StaticBody2D
 
 
 func _ready() -> void:
+	add_to_group("station")
 	$Sprite2D.texture = texture
 
 
@@ -23,5 +24,6 @@ func get_prompt() -> String:
 	return "Press E: use %s" % display_name
 
 
+## Opens the crafting panel on this player's screen only.
 func use() -> void:
 	Events.station_opened.emit(station_id, display_name)

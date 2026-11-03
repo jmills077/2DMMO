@@ -1,6 +1,11 @@
 extends StaticBody2D
 ## A rock that gives ore when mined, then respawns after a while.
 ## Set item_id, the textures and timings in the Inspector.
+## The server decides when it is mined and when it respawns; other windows
+## just show what the server tells them.
+
+## Emitted on the server whenever this rock changes, so every window updates.
+signal state_changed
 
 @export var display_name := "Iron Rock"
 @export var item_id := "iron_ore"
@@ -23,11 +28,13 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if depleted:
-		_respawn_left -= delta
-		if _respawn_left <= 0.0:
-			depleted = false
-			_refresh()
+	if not depleted:
+		return
+	_respawn_left = maxf(_respawn_left - delta, 0.0)
+	if _respawn_left <= 0.0 and multiplayer.is_server():
+		depleted = false
+		_refresh()
+		state_changed.emit()
 
 
 func get_interaction() -> String:
@@ -42,13 +49,13 @@ func gather_duration() -> float:
 	return gather_seconds
 
 
-func gather() -> void:
-	var amount := randi_range(yield_min, yield_max)
-	Inventory.add_item(item_id, amount)
-	Events.toast.emit("+%d %s" % [amount, GameData.item_name(item_id)])
+## Server only: mines the rock and returns what the player gets.
+func harvest() -> Dictionary:
 	depleted = true
 	_respawn_left = respawn_seconds
 	_refresh()
+	state_changed.emit()
+	return {item_id: randi_range(yield_min, yield_max)}
 
 
 func get_save_state() -> Dictionary:

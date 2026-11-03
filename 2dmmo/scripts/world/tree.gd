@@ -2,8 +2,12 @@ extends StaticBody2D
 ## Forestry: a tree can be felled for logs and saplings.
 ## A felled tree leaves a stump that stays bare until someone plants a sapling,
 ## and the sapling grows back into a full tree over time.
+## The server decides all changes; other windows just show them.
 
 enum Stage { GROWN, STUMP, SAPLING }
+
+## Emitted on the server whenever this tree changes, so every window updates.
+signal state_changed
 
 @export var stage: Stage = Stage.GROWN
 @export var fell_seconds := 2.5
@@ -26,11 +30,13 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if stage == Stage.SAPLING:
-		_grow_left -= delta
-		if _grow_left <= 0.0:
-			stage = Stage.GROWN
-			_refresh()
+	if stage != Stage.SAPLING:
+		return
+	_grow_left = maxf(_grow_left - delta, 0.0)
+	if _grow_left <= 0.0 and multiplayer.is_server():
+		stage = Stage.GROWN
+		_refresh()
+		state_changed.emit()
 
 
 func get_interaction() -> String:
@@ -57,22 +63,33 @@ func gather_duration() -> float:
 	return fell_seconds
 
 
-func gather() -> void:
-	var logs := randi_range(logs_min, logs_max)
-	var saplings := 1 + (1 if randf() < extra_sapling_chance else 0)
-	Inventory.add_item("log", logs)
-	Inventory.add_item("sapling", saplings)
-	Events.toast.emit("+%d Log, +%d Sapling" % [logs, saplings])
+## Pressed E on the stump: ask the server to plant.
+func use() -> void:
+	Server.request_use.rpc_id(1, Server.path_of(self))
+
+
+## Server only: fells the tree and returns what the player gets.
+func harvest() -> Dictionary:
 	stage = Stage.STUMP
 	_refresh()
+	state_changed.emit()
+	return {
+		"log": randi_range(logs_min, logs_max),
+		"sapling": 1 + (1 if randf() < extra_sapling_chance else 0),
+	}
 
 
-func use() -> void:
-	if stage == Stage.STUMP and Inventory.remove_item("sapling", 1):
-		stage = Stage.SAPLING
-		_grow_left = grow_seconds
-		Events.toast.emit("Sapling planted")
-		_refresh()
+## Server only: plants a sapling from the player's bag. Returns a message.
+func server_use(bag: RefCounted) -> String:
+	if stage != Stage.STUMP:
+		return ""
+	if not bag.remove_item("sapling", 1):
+		return "You need a sapling"
+	stage = Stage.SAPLING
+	_grow_left = grow_seconds
+	_refresh()
+	state_changed.emit()
+	return "Sapling planted"
 
 
 func get_save_state() -> Dictionary:
