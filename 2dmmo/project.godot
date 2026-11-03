@@ -24,6 +24,8 @@ Inventory="*res://scripts/autoload/inventory.gd"
 Crafting="*res://scripts/autoload/crafting.gd"
 Net="*res://scripts/autoload/net.gd"
 Server="*res://scripts/autoload/server.gd"
+Town="*res://scripts/autoload/town.gd"
+Trade="*res://scripts/autoload/trade.gd"
 
 [display]
 

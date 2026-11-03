@@ -11,15 +11,21 @@ extends Node
 
 const Bag := preload("res://scripts/bag.gd")
 const DEFAULT_SAVE_PATH := "user://world.json"
-const SAVE_VERSION := 2
+const SAVE_VERSION := 3
 const AUTOSAVE_SECONDS := 60.0
 ## Where new players appear: town square, tile (23, 17).
 const SPAWN_POINT := Vector2(23 * 16 + 8, 17 * 16 + 8)
 ## How far (in pixels) a player can be from what they use. A bit more than the
 ## player's reach, to allow for network delay.
 const MAX_USE_DISTANCE := 40.0
-## Gathering must take at least this share of its full time on the server.
-const GATHER_TIME_TOLERANCE := 0.8
+## Gathering is a timing game: the bar fills over the gather time and the
+## player taps E again inside a highlighted zone. The server picks the zone
+## and checks the tap landed in it.
+const GATHER_ZONE_WIDTH := 0.2
+const GATHER_ZONE_EARLIEST := 0.3
+const GATHER_ZONE_LATEST := 0.75
+## Extra share of the bar allowed either side of the zone, for network delay.
+const GATHER_TIMING_SLACK := 0.12
 
 ## The loaded world scene (main.tscn). It registers itself when it loads.
 var world: Node
@@ -80,8 +86,9 @@ func add_player(peer_id: int, wanted_name: String) -> String:
 		"x": float(record.get("x", SPAWN_POINT.x)),
 		"y": float(record.get("y", SPAWN_POINT.y)),
 	})
-	_send_bag(peer_id)
-	_toast_all("%s joined" % player_name)
+	send_bag(peer_id)
+	Town.player_joined(player_name)
+	toast_all("%s joined" % player_name)
 	return player_name
 
 
@@ -89,6 +96,7 @@ func remove_player(peer_id: int) -> void:
 	if not _names.has(peer_id):
 		return
 	var player_name: String = _names[peer_id]
+	Trade.player_left(peer_id)
 	_store_player(peer_id)
 	var node := player_node(peer_id)
 	if node:
@@ -96,7 +104,8 @@ func remove_player(peer_id: int) -> void:
 	_names.erase(peer_id)
 	_bags.erase(peer_id)
 	_gathering.erase(peer_id)
-	_toast_all("%s left" % player_name)
+	Town.player_left(player_name)
+	toast_all("%s left" % player_name)
 	save_world()
 
 
@@ -113,13 +122,17 @@ func player_names() -> Array:
 	return _names.values()
 
 
+func name_of(peer_id: int) -> String:
+	return str(_names.get(peer_id, ""))
+
+
 # --- Requests from players (each runs on the server) ---
 
 @rpc("any_peer", "call_local", "reliable")
 func hello(wanted_name: String) -> void:
 	if not multiplayer.is_server():
 		return
-	var peer := _sender()
+	var peer := sender()
 	if _names.has(peer):
 		return
 	for node: Node in get_tree().get_nodes_in_group("persist"):
@@ -130,26 +143,40 @@ func hello(wanted_name: String) -> void:
 
 @rpc("any_peer", "call_local", "reliable")
 func request_gather_start(path: String) -> void:
-	if multiplayer.is_server():
-		_gathering[_sender()] = {"path": path, "since": Time.get_ticks_msec()}
+	if not multiplayer.is_server():
+		return
+	var peer := sender()
+	var target := reachable(peer, path)
+	if target == null or not target.has_method("harvest"):
+		return
+	if target.get_interaction() != "gather":
+		toast(peer, "Someone got there first")
+		return
+	var zone_start := randf_range(GATHER_ZONE_EARLIEST, GATHER_ZONE_LATEST)
+	_gathering[peer] = {"path": path, "since": Time.get_ticks_msec(), "zone": zone_start}
+	_call_on(peer, "_receive_gather_zone", [path, zone_start, GATHER_ZONE_WIDTH])
 
 
 @rpc("any_peer", "call_local", "reliable")
 func request_gather_finish(path: String) -> void:
 	if not multiplayer.is_server():
 		return
-	var peer := _sender()
+	var peer := sender()
 	var started: Dictionary = _gathering.get(peer, {})
 	_gathering.erase(peer)
-	var target := _reachable(peer, path)
+	var target := reachable(peer, path)
 	if target == null or not target.has_method("harvest"):
 		return
 	if target.get_interaction() != "gather":
-		_toast(peer, "Someone got there first")
+		toast(peer, "Someone got there first")
 		return
 	if check_gather_time:
-		var needed: float = target.gather_duration() * 1000.0 * GATHER_TIME_TOLERANCE
-		if started.get("path", "") != path or Time.get_ticks_msec() - int(started.since) < needed:
+		if started.get("path", "") != path:
+			return
+		var ratio: float = (Time.get_ticks_msec() - int(started.since)) / (target.gather_duration() * 1000.0)
+		var zone := float(started.zone)
+		if ratio < zone - GATHER_TIMING_SLACK or ratio > zone + GATHER_ZONE_WIDTH + GATHER_TIMING_SLACK:
+			toast(peer, "Missed!")
 			return
 	_give(peer, target.harvest())
 
@@ -158,42 +185,62 @@ func request_gather_finish(path: String) -> void:
 func request_use(path: String) -> void:
 	if not multiplayer.is_server():
 		return
-	var peer := _sender()
-	var target := _reachable(peer, path)
+	var peer := sender()
+	var target := reachable(peer, path)
 	if target == null or not target.has_method("server_use"):
 		return
 	var message: String = target.server_use(bag_of(peer))
-	_send_bag(peer)
+	send_bag(peer)
 	if message != "":
-		_toast(peer, message)
+		toast(peer, message)
 
 
 @rpc("any_peer", "call_local", "reliable")
 func request_craft(recipe_id: String) -> void:
 	if not multiplayer.is_server():
 		return
-	var peer := _sender()
+	var peer := sender()
 	var recipe := Crafting.find_recipe(recipe_id)
 	if recipe.is_empty() or bag_of(peer) == null:
 		return
-	if not _near_station(peer, str(recipe.get("station", ""))):
-		_toast(peer, "Too far from the station")
+	var guild := str(recipe.get("guild", ""))
+	if not Town.knows_recipe(name_of(peer), recipe_id):
+		toast(peer, "You don't know that recipe")
+		return
+	if guild != "" and Town.guild_of(name_of(peer)) != guild:
+		toast(peer, "Only %s can craft that" % GameData.get_guild(guild).get("name", guild))
 		return
 	var result := Crafting.craft(bag_of(peer), recipe)
-	_send_bag(peer)
+	send_bag(peer)
 	if not result.ok:
-		_toast(peer, result.reason)
+		toast(peer, result.reason)
 	elif result.high_quality:
-		_toast(peer, "High quality %s!" % GameData.item_name(result.item))
+		toast(peer, "High quality %s!" % GameData.item_name(result.item))
 	else:
-		_toast(peer, "Crafted %s" % GameData.item_name(result.item))
+		toast(peer, "Crafted %s" % GameData.item_name(result.item))
+
+
+## Testing shortcut (F9): every rock, sheep, deer, herb and tree comes back.
+## Only works in test builds (running from the Godot editor), never on a
+## released server.
+@rpc("any_peer", "call_local", "reliable")
+func request_refill_resources() -> void:
+	if not multiplayer.is_server():
+		return
+	if not OS.is_debug_build():
+		toast(sender(), "Refilling is only for testing")
+		return
+	for node: Node in get_tree().get_nodes_in_group("persist"):
+		node.apply_save_state({})
+		_broadcast_state(node)
+	toast_all("%s refilled every resource (F9)" % name_of(sender()))
 
 
 @rpc("any_peer", "call_local", "reliable")
 func request_save() -> void:
 	if multiplayer.is_server():
 		save_world()
-		_toast(_sender(), "World saved")
+		toast(sender(), "World saved")
 
 
 # --- Messages from the server (each runs on a player's machine) ---
@@ -201,6 +248,11 @@ func request_save() -> void:
 @rpc("authority", "call_local", "reliable")
 func _receive_bag(slots: Array) -> void:
 	Inventory.set_slots(slots)
+
+
+@rpc("authority", "call_local", "reliable")
+func _receive_gather_zone(path: String, zone_start: float, zone_width: float) -> void:
+	Events.gather_zone.emit(path, zone_start, zone_width)
 
 
 @rpc("authority", "call_local", "reliable")
@@ -230,7 +282,7 @@ func save_world() -> void:
 	var objects := {}
 	for node: Node in get_tree().get_nodes_in_group("persist"):
 		objects[path_of(node)] = node.get_save_state()
-	var data := {"version": SAVE_VERSION, "world": objects, "players": _saved_players}
+	var data := {"version": SAVE_VERSION, "world": objects, "players": _saved_players, "town": Town.to_save_data()}
 	var file := FileAccess.open(save_path, FileAccess.WRITE)
 	if file == null:
 		push_error("Could not write %s" % save_path)
@@ -240,7 +292,9 @@ func save_world() -> void:
 
 func _load_world() -> void:
 	_saved_players = {}
+	Town.reset()
 	if not FileAccess.file_exists(save_path):
+		Town.publish()
 		return
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(save_path))
 	if not parsed is Dictionary:
@@ -253,6 +307,7 @@ func _load_world() -> void:
 		if node and node.has_method("apply_save_state"):
 			node.apply_save_state(objects[path])
 	_saved_players = data.get("players", {})
+	Town.load_save_data(data.get("town", {}))
 
 
 func delete_save() -> void:
@@ -277,33 +332,22 @@ func path_of(node: Node) -> String:
 	return str(world.get_path_to(node))
 
 
-func _sender() -> int:
+func sender() -> int:
 	var id := multiplayer.get_remote_sender_id()
 	return id if id != 0 else multiplayer.get_unique_id()
 
 
 ## The world object at path, if the player is close enough to use it.
-func _reachable(peer_id: int, path: String) -> Node2D:
+func reachable(peer_id: int, path: String) -> Node2D:
 	var entities := world.get_node_or_null("Entities")
 	var target := world.get_node_or_null(path) as Node2D
 	var player := player_node(peer_id)
 	if entities == null or target == null or player == null or not entities.is_ancestor_of(target):
 		return null
 	if player.global_position.distance_to(target.global_position) > MAX_USE_DISTANCE:
-		_toast(peer_id, "Too far away")
+		toast(peer_id, "Too far away")
 		return null
 	return target
-
-
-func _near_station(peer_id: int, station_id: String) -> bool:
-	var player := player_node(peer_id)
-	if player == null:
-		return false
-	for station: Node2D in get_tree().get_nodes_in_group("station"):
-		if station.station_id == station_id and \
-				player.global_position.distance_to(station.global_position) <= MAX_USE_DISTANCE:
-			return true
-	return false
 
 
 func _give(peer_id: int, rewards: Dictionary) -> void:
@@ -317,10 +361,10 @@ func _give(peer_id: int, rewards: Dictionary) -> void:
 		parts.append("+%d %s" % [int(rewards[id]) - left, GameData.item_name(id)])
 		if left > 0:
 			lost.append("%d %s" % [left, GameData.item_name(id)])
-	_send_bag(peer_id)
-	_toast(peer_id, ", ".join(parts))
+	send_bag(peer_id)
+	toast(peer_id, ", ".join(parts))
 	if not lost.is_empty():
-		_toast(peer_id, "Bag full: lost " + ", ".join(lost))
+		toast(peer_id, "Bag full: lost " + ", ".join(lost))
 
 
 func _pick_name(wanted: String) -> String:
@@ -348,18 +392,18 @@ func _broadcast_state(node: Node) -> void:
 		_receive_state.rpc_id(peer, path, state)
 
 
-func _send_bag(peer_id: int) -> void:
+func send_bag(peer_id: int) -> void:
 	if _bags.has(peer_id):
 		_call_on(peer_id, "_receive_bag", [_bags[peer_id].to_save_data()])
 
 
-func _toast(peer_id: int, text: String) -> void:
+func toast(peer_id: int, text: String) -> void:
 	_call_on(peer_id, "_receive_toast", [text])
 
 
-func _toast_all(text: String) -> void:
+func toast_all(text: String) -> void:
 	for peer: int in _names:
-		_toast(peer, text)
+		toast(peer, text)
 
 
 ## Runs a message on one player's machine (directly, if that player is us).

@@ -5,9 +5,15 @@ extends Node
 
 const ITEMS_PATH := "res://data/items.json"
 const RECIPES_PATH := "res://data/recipes.json"
+const GUILDS_PATH := "res://data/guilds.json"
+const UPGRADES_PATH := "res://data/upgrades.json"
 
 var items: Dictionary = {}
 var recipes: Array = []
+## The crafting guilds a player can join. Edit data/guilds.json.
+var guilds: Array = []
+## Town upgrades guild leaders can vote to build. Edit data/upgrades.json.
+var upgrades: Array = []
 var _icon_cache: Dictionary = {}
 
 
@@ -18,6 +24,12 @@ func _enter_tree() -> void:
 	var loaded_recipes: Variant = _load_json(RECIPES_PATH)
 	if loaded_recipes is Array:
 		recipes = loaded_recipes
+	var loaded_guilds: Variant = _load_json(GUILDS_PATH)
+	if loaded_guilds is Array:
+		guilds = loaded_guilds
+	var loaded_upgrades: Variant = _load_json(UPGRADES_PATH)
+	if loaded_upgrades is Array:
+		upgrades = loaded_upgrades
 
 
 func get_item(id: String) -> Dictionary:
@@ -41,8 +53,27 @@ func stack_size(id: String) -> int:
 	return int(get_item(id).get("stack", 99))
 
 
-func recipes_for_station(station_id: String) -> Array:
-	return recipes.filter(func(r: Dictionary) -> bool: return r.get("station") == station_id)
+func get_guild(id: String) -> Dictionary:
+	for guild: Dictionary in guilds:
+		if guild.id == id:
+			return guild
+	return {}
+
+
+func get_upgrade(id: String) -> Dictionary:
+	for upgrade: Dictionary in upgrades:
+		if upgrade.id == id:
+			return upgrade
+	return {}
+
+
+## Raw materials can be donated to the town. Crafted gear (anything with stats) cannot.
+func is_donatable(id: String) -> bool:
+	return items.has(id) and not get_item(id).has("stats")
+
+
+func recipes_for_guild(guild_id: String) -> Array:
+	return recipes.filter(func(r: Dictionary) -> bool: return r.get("guild") == guild_id)
 
 
 func _load_json(path: String) -> Variant:

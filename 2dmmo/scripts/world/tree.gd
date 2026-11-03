@@ -51,7 +51,7 @@ func get_interaction() -> String:
 func get_prompt() -> String:
 	match stage:
 		Stage.GROWN:
-			return "Hold E: fell tree"
+			return "Press E: fell tree"
 		Stage.STUMP:
 			return "Press E: plant a sapling" if Inventory.count_of("sapling") > 0 else "Stump: needs a sapling to replant"
 		Stage.SAPLING:

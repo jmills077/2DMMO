@@ -14,6 +14,12 @@ const MISSING_COLOR := Color(1.0, 0.45, 0.4)
 var _root: Control
 var _prompt: Label
 var _gather_bar: ProgressBar
+var _gather_zone: ColorRect
+var _gather_fill: StyleBoxFlat
+var _fail_left := 0.0
+const FAIL_SECONDS := 0.35
+const GATHER_FILL_COLOR := Color(0.95, 0.8, 0.35)
+const GATHER_FAIL_COLOR := Color(0.95, 0.25, 0.2)
 var _toasts: VBoxContainer
 var _inventory_panel: PanelContainer
 var _inventory_grid: GridContainer
@@ -21,19 +27,20 @@ var _item_details: Label
 var _craft_panel: PanelContainer
 var _craft_title: Label
 var _craft_list: VBoxContainer
-var _current_station := ""
 var _status: Label
 var _connect_panel: PanelContainer
 var _name_field: LineEdit
 var _address_field: LineEdit
+var _town_ui: Control
+var _trade_ui: Control
 
 
 func _ready() -> void:
 	_build_layout()
 	Inventory.changed.connect(_refresh_inventory)
 	Inventory.changed.connect(_refresh_crafting)
+	Town.changed.connect(_refresh_crafting)
 	Events.toast.connect(_show_toast)
-	Events.station_opened.connect(_open_station)
 	Events.local_player_ready.connect(_on_local_player_ready)
 	Events.status_changed.connect(func(text: String) -> void: _status.text = text)
 	Events.show_connect_menu.connect(_show_connect_menu)
@@ -44,6 +51,7 @@ func _ready() -> void:
 func _on_local_player_ready(player: Node) -> void:
 	player.target_changed.connect(_on_target_changed)
 	player.gather_progress.connect(_on_gather_progress)
+	player.gather_failed.connect(_on_gather_failed)
 	_connect_panel.visible = false
 	_update_blocking()
 
@@ -54,6 +62,17 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("save_game"):
 		if Net.mode != "":
 			Server.request_save.rpc_id(1)
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("refill_resources"):
+		if Net.mode != "":
+			Server.request_refill_resources.rpc_id(1)
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("trade"):
+		if Net.mode != "":
+			_trade_ui.invite_nearest()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("crafting"):
+		_set_crafting_visible(not _craft_panel.visible)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("inventory"):
 		_set_inventory_visible(not _inventory_panel.visible)
@@ -70,9 +89,48 @@ func _on_target_changed(prompt: String) -> void:
 	_prompt.visible = prompt != "" and not Events.ui_blocking
 
 
-func _on_gather_progress(ratio: float) -> void:
+func _on_gather_progress(ratio: float, zone_start: float, zone_width: float) -> void:
+	if _fail_left > 0.0:
+		if ratio <= 0.0:
+			return
+		_end_fail()
 	_gather_bar.value = ratio
 	_gather_bar.visible = ratio > 0.0
+	var width := _gather_bar.size.x
+	_gather_zone.position = Vector2(round(zone_start * width), 0)
+	_gather_zone.size = Vector2(maxf(round(zone_width * width), 2.0), _gather_bar.size.y)
+
+
+## A missed tap: the bar stays a moment, flashes red and shakes.
+func _on_gather_failed() -> void:
+	_fail_left = FAIL_SECONDS
+	_gather_bar.visible = true
+	_gather_zone.visible = false
+
+
+func _process(delta: float) -> void:
+	if _fail_left <= 0.0:
+		return
+	_fail_left -= delta
+	if _fail_left <= 0.0:
+		_end_fail()
+		return
+	var t := 1.0 - _fail_left / FAIL_SECONDS
+	_gather_fill.bg_color = GATHER_FAIL_COLOR.lerp(GATHER_FILL_COLOR, t * t)
+	_gather_bar.modulate = Color(1.0, 0.55, 0.55).lerp(Color.WHITE, t)
+	var shake := roundf(sin(t * TAU * 4.0) * 3.0 * (1.0 - t))
+	_gather_bar.offset_left = -40 + shake
+	_gather_bar.offset_right = 40 + shake
+
+
+func _end_fail() -> void:
+	_fail_left = 0.0
+	_gather_fill.bg_color = GATHER_FILL_COLOR
+	_gather_bar.modulate = Color.WHITE
+	_gather_bar.offset_left = -40
+	_gather_bar.offset_right = 40
+	_gather_bar.visible = false
+	_gather_zone.visible = true
 
 
 func _show_toast(text: String) -> void:
@@ -92,7 +150,6 @@ func _set_inventory_visible(show: bool) -> void:
 	_inventory_panel.visible = show
 	if not show:
 		_craft_panel.visible = false
-		_current_station = ""
 	_update_blocking()
 
 
@@ -149,21 +206,28 @@ func _describe(slot: Dictionary) -> String:
 
 # --- Crafting ---
 
-func _open_station(station_id: String, display_name: String) -> void:
-	_current_station = station_id
-	_craft_title.text = display_name
-	_craft_panel.visible = true
-	_set_inventory_visible(true)
-	_refresh_crafting()
+## Your own crafting menu (C). It lists only the recipes you know, and you
+## can craft anywhere.
+func _set_crafting_visible(show: bool) -> void:
+	_craft_panel.visible = show
+	if show:
+		_inventory_panel.visible = true
+		_refresh_crafting()
+	_update_blocking()
 
 
 func _refresh_crafting() -> void:
-	if _current_station == "":
+	if not _craft_panel.visible:
 		return
 	for child in _craft_list.get_children():
 		child.queue_free()
-	for recipe: Dictionary in GameData.recipes_for_station(_current_station):
+	var guild := GameData.get_guild(Town.guild_of(Net.player_name))
+	_craft_title.text = "Crafting: %s" % guild.member if not guild.is_empty() else "Crafting"
+	var known := Town.known_recipes(Net.player_name)
+	for recipe: Dictionary in known:
 		_craft_list.add_child(_make_recipe_row(recipe))
+	if known.is_empty():
+		_craft_list.add_child(_label("Join a guild to learn its recipes."))
 
 
 func _make_recipe_row(recipe: Dictionary) -> Control:
@@ -179,7 +243,8 @@ func _make_recipe_row(recipe: Dictionary) -> Control:
 	text.add_theme_constant_override("separation", 0)
 	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var count := int(output.get("count", 1))
-	text.add_child(_label(("%d x " % count if count > 1 else "") + GameData.item_name(output.item)))
+	var title := ("%d x " % count if count > 1 else "") + GameData.item_name(output.item)
+	text.add_child(_label(title))
 	var needs := RichTextLabel.new()
 	needs.bbcode_enabled = true
 	needs.fit_content = true
@@ -239,10 +304,13 @@ func _on_join_pressed() -> void:
 
 func _close_all() -> void:
 	_set_inventory_visible(false)
+	_town_ui.close()
+	_trade_ui.close()
 
 
 func _update_blocking() -> void:
-	Events.ui_blocking = _inventory_panel.visible or _craft_panel.visible or _connect_panel.visible
+	Events.ui_blocking = _inventory_panel.visible or _craft_panel.visible or _connect_panel.visible \
+			or _town_ui.is_open() or _trade_ui.is_open()
 	_prompt.visible = _prompt.text != "" and not Events.ui_blocking
 
 
@@ -296,7 +364,7 @@ func _build_layout() -> void:
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_root)
 
-	var help := _label("WASD move   E interact   I bag   F5 save   Esc close")
+	var help := _label("WASD move   E interact   Space roll   I bag   C craft   T trade   Esc close")
 	help.position = Vector2(4, 2)
 	help.modulate.a = 0.75
 	_root.add_child(help)
@@ -312,16 +380,21 @@ func _build_layout() -> void:
 	_root.add_child(_prompt)
 
 	_gather_bar = ProgressBar.new()
-	_gather_bar.custom_minimum_size = Vector2(60, 5)
-	_anchor(_gather_bar, Vector2(0.5, 1.0), Rect2(-30, -36, 60, 5))
+	_gather_bar.custom_minimum_size = Vector2(80, 7)
+	_anchor(_gather_bar, Vector2(0.5, 1.0), Rect2(-40, -38, 80, 7))
 	_gather_bar.max_value = 1.0
 	_gather_bar.show_percentage = false
 	_gather_bar.add_theme_stylebox_override("background", _box_style(Color(0, 0, 0, 0.6), Color.BLACK))
-	var fill := StyleBoxFlat.new()
-	fill.bg_color = Color(0.95, 0.8, 0.35)
-	_gather_bar.add_theme_stylebox_override("fill", fill)
+	_gather_fill = StyleBoxFlat.new()
+	_gather_fill.bg_color = GATHER_FILL_COLOR
+	_gather_bar.add_theme_stylebox_override("fill", _gather_fill)
 	_gather_bar.visible = false
 	_root.add_child(_gather_bar)
+	# The zone to hit: tap E while the fill is inside it.
+	_gather_zone = ColorRect.new()
+	_gather_zone.color = Color(0.4, 1.0, 0.5, 0.55)
+	_gather_zone.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_gather_bar.add_child(_gather_zone)
 
 	_toasts = VBoxContainer.new()
 	_anchor(_toasts, Vector2(1.0, 0.0), Rect2(-164, 4, 160, 80))
@@ -353,6 +426,13 @@ func _build_layout() -> void:
 	_craft_list.add_theme_constant_override("separation", 4)
 	craft[1].add_child(_craft_list)
 	_root.add_child(_craft_panel)
+
+	_town_ui = preload("res://scripts/ui/town_ui.gd").new()
+	_root.add_child(_town_ui)
+	_town_ui.open_changed.connect(_update_blocking)
+	_trade_ui = preload("res://scripts/ui/trade_ui.gd").new()
+	_root.add_child(_trade_ui)
+	_trade_ui.open_changed.connect(_update_blocking)
 
 	var menu: Array = _panel("Play")
 	_connect_panel = menu[0]

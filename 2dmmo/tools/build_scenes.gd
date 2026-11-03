@@ -29,7 +29,7 @@ func _ready() -> void:
 	_save(_build_player(), "res://scenes/player.tscn")
 	_save(_build_ore_rock(), "res://scenes/ore_rock.tscn")
 	_save(_build_tree(), "res://scenes/tree.tscn")
-	_save(_build_station(), "res://scenes/station.tscn")
+	_save(_build_town_object(), "res://scenes/town_object.tscn")
 	_save(_build_main(load("res://art/terrain_tileset.tres")), "res://scenes/main.tscn")
 	print("Scenes built.")
 	get_tree().quit()
@@ -116,7 +116,7 @@ func _build_player() -> Node:
 	var sync := MultiplayerSynchronizer.new()
 	sync.name = "Sync"
 	var config := SceneReplicationConfig.new()
-	for property: String in [".:sync_position", ".:facing_left"]:
+	for property: String in [".:sync_position", ".:facing_left", ".:roll_angle"]:
 		config.add_property(NodePath(property))
 		config.property_set_spawn(NodePath(property), true)
 		config.property_set_replication_mode(NodePath(property),
@@ -158,12 +158,17 @@ func _build_tree() -> Node:
 	return tree
 
 
-func _build_station() -> Node:
-	var station := _static_body("Station", "res://scripts/world/station.gd")
-	station.set("texture", load("res://art/workbench.png"))
-	(station.get_node("Sprite2D") as Sprite2D).texture = load("res://art/workbench.png")
-	_add(station, _rect_shape(Vector2(14, 9), Vector2(0, 2)), station)
-	return station
+func _build_town_object() -> Node:
+	var thing := _static_body("TownObject", "res://scripts/world/town_object.gd")
+	thing.set("texture", load("res://art/stockpile.png"))
+	(thing.get_node("Sprite2D") as Sprite2D).texture = load("res://art/stockpile.png")
+	var cloth := Sprite2D.new()
+	cloth.name = "Cloth"
+	cloth.texture = load("res://art/banner_cloth.png")
+	cloth.visible = false
+	_add(thing, cloth, thing)
+	_add(thing, _rect_shape(Vector2(12, 6), Vector2(0, 4)), thing)
+	return thing
 
 
 func _tile_center(cell: Vector2i) -> Vector2:
@@ -192,20 +197,31 @@ func _build_main(tileset: TileSet) -> Node:
 	_add(main, spawner, main)
 	spawner.spawn_path = spawner.get_path_to(entities)
 
-	var station_scene: PackedScene = load("res://scenes/station.tscn")
-	var furnace: Node2D = station_scene.instantiate()
-	furnace.name = "Furnace"
-	furnace.set("station_id", "furnace")
-	furnace.set("display_name", "Furnace")
-	furnace.set("texture", load("res://art/furnace.png"))
-	furnace.position = _tile_center(Vector2i(21, 13))
-	_add(entities, furnace, main)
-	var workbench: Node2D = station_scene.instantiate()
-	workbench.name = "Workbench"
-	workbench.set("station_id", "workbench")
-	workbench.set("display_name", "Workbench")
-	workbench.position = _tile_center(Vector2i(26, 13))
-	_add(entities, workbench, main)
+	# Town: stockpile, round table, and a banner for each guild hall.
+	var town_scene: PackedScene = load("res://scenes/town_object.tscn")
+	var stockpile: Node2D = town_scene.instantiate()
+	stockpile.name = "Stockpile"
+	stockpile.position = _tile_center(Vector2i(19, 13))
+	_add(entities, stockpile, main)
+	var table: Node2D = town_scene.instantiate()
+	table.name = "RoundTable"
+	table.set("kind", "round_table")
+	table.set("display_name", "Round Table")
+	table.set("texture", load("res://art/round_table.png"))
+	(table.get_node("Sprite2D") as Sprite2D).texture = load("res://art/round_table.png")
+	table.position = _tile_center(Vector2i(23, 12))
+	_add(entities, table, main)
+	var guild_ids := ["blacksmith", "woodworker", "tailor", "leatherworker", "apothecary", "engineer"]
+	for i in guild_ids.size():
+		var banner: Node2D = town_scene.instantiate()
+		banner.name = "Hall_%s" % guild_ids[i]
+		banner.set("kind", "guild_hall")
+		banner.set("guild_id", guild_ids[i])
+		banner.set("display_name", "Guild Hall")
+		banner.set("texture", load("res://art/banner_pole.png"))
+		(banner.get_node("Sprite2D") as Sprite2D).texture = load("res://art/banner_pole.png")
+		banner.position = _tile_center(Vector2i(19 + i * 2, 19))
+		_add(entities, banner, main)
 
 	var tree_scene: PackedScene = load("res://scenes/tree.tscn")
 	var trees := [
@@ -238,6 +254,37 @@ func _build_main(tileset: TileSet) -> Node:
 		(rock.get_node("Sprite2D") as Sprite2D).texture = load("res://art/coal_rock.png")
 		rock.position = _tile_center(coal[i])
 		_add(entities, rock, main)
+
+	# Pasture north of town: sheep. Meadow south of town: deer. Herbs at the forest edges.
+	var critters := [
+		["Sheep", "Sheep", "wool", "shear", 2.0, 60.0, 2, 3, "sheep", "sheep_sheared",
+			[Vector2i(18, 4), Vector2i(21, 6), Vector2i(24, 3), Vector2i(27, 5), Vector2i(29, 7)]],
+		["Deer", "Deer", "hide", "hunt", 2.5, 90.0, 1, 2, "deer", "",
+			[Vector2i(18, 24), Vector2i(22, 26), Vector2i(26, 23), Vector2i(29, 26)]],
+		["Herb", "Herbs", "herb", "pick", 1.0, 40.0, 1, 3, "herb", "herb_picked",
+			[Vector2i(15, 3), Vector2i(16, 8), Vector2i(15, 21), Vector2i(16, 26), Vector2i(31, 22), Vector2i(31, 4)]],
+	]
+	for spec: Array in critters:
+		var cells: Array = spec[10]
+		for i in cells.size():
+			var node: Node2D = rock_scene.instantiate()
+			node.name = "%s%d" % [spec[0], i + 1]
+			node.set("display_name", spec[1])
+			node.set("item_id", spec[2])
+			node.set("verb", spec[3])
+			node.set("gather_seconds", spec[4])
+			node.set("respawn_seconds", spec[5])
+			node.set("yield_min", spec[6])
+			node.set("yield_max", spec[7])
+			var full: Texture2D = load("res://art/%s.png" % spec[8])
+			node.set("full_texture", full)
+			if spec[9] != "":
+				node.set("depleted_texture", load("res://art/%s.png" % spec[9]))
+			else:
+				node.set("hide_when_depleted", true)
+			(node.get_node("Sprite2D") as Sprite2D).texture = full
+			node.position = _tile_center(cells[i])
+			_add(entities, node, main)
 
 	var hud := CanvasLayer.new()
 	hud.name = "HUD"

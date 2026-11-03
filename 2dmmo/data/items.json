@@ -7,5 +7,18 @@
 	"plank": { "name": "Plank", "icon": "res://art/icon_plank.png", "stack": 50, "description": "Sawn timber." },
 	"handle": { "name": "Handle", "icon": "res://art/icon_handle.png", "stack": 50, "description": "A grip for tools and weapons." },
 	"iron_sword": { "name": "Iron Sword", "icon": "res://art/icon_iron_sword.png", "stack": 1, "description": "A plain but reliable blade.", "stats": { "damage": 10, "speed": 5, "durability": 100 } },
-	"wooden_shield": { "name": "Wooden Shield", "icon": "res://art/icon_wooden_shield.png", "stack": 1, "description": "Iron-rimmed planks.", "stats": { "armor": 6, "block": 4, "durability": 80 } }
+	"wooden_shield": { "name": "Wooden Shield", "icon": "res://art/icon_wooden_shield.png", "stack": 1, "description": "Iron-rimmed planks.", "stats": { "armor": 6, "block": 4, "durability": 80 } },
+	"wool": { "name": "Wool", "icon": "res://art/icon_wool.png", "stack": 50, "description": "Sheared from sheep. Tailors spin and weave it." },
+	"hide": { "name": "Hide", "icon": "res://art/icon_hide.png", "stack": 50, "description": "From a hunted deer. Leatherworkers tan it." },
+	"herb": { "name": "Herb", "icon": "res://art/icon_herb.png", "stack": 50, "description": "A medicinal plant. Apothecaries brew with it." },
+	"cloth": { "name": "Cloth", "icon": "res://art/icon_cloth.png", "stack": 50, "description": "Woven wool." },
+	"string": { "name": "String", "icon": "res://art/icon_string.png", "stack": 50, "description": "Spun wool. Bowstrings, stitching and lacing." },
+	"leather": { "name": "Leather", "icon": "res://art/icon_leather.png", "stack": 50, "description": "Tanned hide." },
+	"leather_strap": { "name": "Leather Strap", "icon": "res://art/icon_leather_strap.png", "stack": 50, "description": "Straps for armor, shields and mechanisms." },
+	"cogwheel": { "name": "Cogwheel", "icon": "res://art/icon_cogwheel.png", "stack": 50, "description": "A small iron gear for mechanisms." },
+	"healing_salve": { "name": "Healing Salve", "icon": "res://art/icon_healing_salve.png", "stack": 20, "description": "Soothes wounds. Useful once invasions begin." },
+	"cloth_robe": { "name": "Cloth Robe", "icon": "res://art/icon_cloth_robe.png", "stack": 1, "description": "Light, comfortable, and favored by healers.", "stats": { "armor": 3, "focus": 6, "durability": 60 } },
+	"leather_armor": { "name": "Leather Armor", "icon": "res://art/icon_leather_armor.png", "stack": 1, "description": "Supple armor laced with string.", "stats": { "armor": 5, "agility": 4, "durability": 90 } },
+	"wooden_bow": { "name": "Wooden Bow", "icon": "res://art/icon_wooden_bow.png", "stack": 1, "description": "A plank bow with a tailor's string.", "stats": { "damage": 7, "speed": 7, "durability": 70 } },
+	"spike_trap": { "name": "Spike Trap", "icon": "res://art/icon_spike_trap.png", "stack": 10, "description": "A sprung trap for the town's defenses (milestone 4)." }
 }

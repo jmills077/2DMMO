@@ -1,0 +1,23 @@
+[
+	{
+		"id": "palisade", "name": "Palisade",
+		"description": "A log wall around the town. Holds back invaders (milestone 4).",
+		"cost": { "log": 20, "plank": 10 },
+		"art": "res://art/palisade.png",
+		"ring": [17, 10, 30, 20], "gaps": [[17, 15], [30, 15]]
+	},
+	{
+		"id": "watchtower", "name": "Watchtower",
+		"description": "Spots invasions early and lets archers fire over the wall (milestone 4).",
+		"cost": { "log": 8, "plank": 6, "iron_ingot": 2 },
+		"art": "res://art/watchtower.png",
+		"tiles": [[29, 11]]
+	},
+	{
+		"id": "silo", "name": "Supply Silo",
+		"description": "Stores the town's reserves. A stocked silo lets the town survive a lost invasion.",
+		"cost": { "plank": 8, "iron_ingot": 2, "log": 4 },
+		"art": "res://art/silo.png",
+		"tiles": [[18, 11]]
+	}
+]

@@ -1,6 +1,8 @@
 extends StaticBody2D
-## A rock that gives ore when mined, then respawns after a while.
-## Set item_id, the textures and timings in the Inspector.
+## Something you gather by holding E, which then comes back after a while:
+## ore rocks, sheep (wool grows back), deer (a new one arrives) and herbs.
+## Set item_id, the verb, the textures and timings in the Inspector.
+## Turn on hide_when_depleted to make it disappear while depleted (deer).
 ## The server decides when it is mined and when it respawns; other windows
 ## just show what the server tells them.
 
@@ -9,12 +11,15 @@ signal state_changed
 
 @export var display_name := "Iron Rock"
 @export var item_id := "iron_ore"
+## Shown in the prompt: "Press E: <verb> <display_name>".
+@export var verb := "mine"
 @export var yield_min := 1
 @export var yield_max := 2
 @export var gather_seconds := 1.5
 @export var respawn_seconds := 45.0
 @export var full_texture: Texture2D
 @export var depleted_texture: Texture2D
+@export var hide_when_depleted := false
 
 var depleted := false
 var _respawn_left := 0.0
@@ -42,7 +47,7 @@ func get_interaction() -> String:
 
 
 func get_prompt() -> String:
-	return "" if depleted else "Hold E: mine %s" % display_name
+	return "" if depleted else "Press E: %s %s" % [verb, display_name]
 
 
 func gather_duration() -> float:
@@ -69,5 +74,9 @@ func apply_save_state(state: Dictionary) -> void:
 
 
 func _refresh() -> void:
-	if sprite:
-		sprite.texture = depleted_texture if depleted else full_texture
+	if sprite == null:
+		return
+	sprite.texture = depleted_texture if depleted else full_texture
+	if hide_when_depleted:
+		sprite.visible = not depleted
+		$CollisionShape2D.set_deferred("disabled", depleted)
