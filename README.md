@@ -23,8 +23,9 @@ To play with someone on your home network, start the game with `-- --host` on yo
 | --- | --- |
 | WASD or arrows | Move |
 | E | Interact. To gather: tap E to start the bar, then tap E again while the bar is in the green zone. Miss and the bar shakes red and resets. Also plants saplings and opens town objects. |
+| R | Attack the way you last moved (needs a weapon worn) |
 | Space | Roll: a quick burst in the direction you are moving |
-| I or Tab | Open or close your bag |
+| I or Tab | Open or close your bag. Click gear to wear it, click worn gear to take it off, click a healing salve to use it |
 | C | Open or close your crafting menu (craft anywhere) |
 | T | Ask the nearest player to trade (stand right next to them) |
 | F5 | Save the world (the host also saves every minute, when anyone leaves, and when it closes) |
@@ -63,6 +64,16 @@ To play with someone on your home network, start the game with `-- --host` on yo
 - Both players press **Accept trade**. Changing either offer clears both accepts, so nobody can swap something in at the last second.
 - The host checks both bags still hold the items and have room, then swaps everything at once. Crafted gear keeps its quality and stats.
 - Cancel, Esc, walking more than about 6 tiles apart, or leaving the game cancels the trade. Nothing changes hands unless both accept.
+
+## Milestone 4, part 1: gear and fighting
+
+- **Gear**: the bag (I) has Weapon, Off-hand and Armor slots. Click a sword, bow, shield, robe or leather armor to wear it. Armor softens every hit you take.
+- **Attacking (R)**: a sword hits what's right in front of you. A bow shoots an arrow 50 pixels and uses one arrow. Faster weapons attack more often.
+- **Arrows**: anyone can make 5 arrows from 1 log with the button in the bag. An arrow that misses lands on the ground; walk to it and press E to pick it up.
+- **Hunting**: deer now have to be killed with a weapon. Their body stays on the ground; press E to skin it for hide (the same timing game as gathering).
+- **Wolves** in the south-west woods attack anyone who comes close and give up if you lead them far from home.
+- **Health** is the red bar at the top left. It comes back slowly when nothing has hurt you for a few seconds. A healing salve heals 25 straight away.
+- **Dying**: your body stays where you fell, lying on its side, and your spirit appears at the graveyard just west of town. A line at the top of the screen says which way your body is. Walk back to it and press E to come back to life there with half your health. Spirits can't gather, craft, trade or fight.
 
 ## Changing the game without code
 

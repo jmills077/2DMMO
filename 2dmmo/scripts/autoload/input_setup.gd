@@ -9,6 +9,7 @@ const BINDINGS := {
 	"move_right": [KEY_D, KEY_RIGHT],
 	"interact": [KEY_E],
 	"roll": [KEY_SPACE],
+	"attack": [KEY_R],
 	"inventory": [KEY_I, KEY_TAB],
 	"crafting": [KEY_C],
 	"trade": [KEY_T],

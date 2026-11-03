@@ -30,6 +30,7 @@ func _ready() -> void:
 	_save(_build_ore_rock(), "res://scenes/ore_rock.tscn")
 	_save(_build_tree(), "res://scenes/tree.tscn")
 	_save(_build_town_object(), "res://scenes/town_object.tscn")
+	_save(_build_mob(), "res://scenes/mob.tscn")
 	_save(_build_main(load("res://art/terrain_tileset.tres")), "res://scenes/main.tscn")
 	print("Scenes built.")
 	get_tree().quit()
@@ -171,6 +172,24 @@ func _build_town_object() -> Node:
 	return thing
 
 
+## A creature (deer, wolf). Interactable so its body can be gathered; it
+## bumps into water and solid things but not into players.
+func _build_mob() -> Node:
+	var mob := CharacterBody2D.new()
+	mob.name = "Mob"
+	mob.set_script(load("res://scripts/world/mob.gd"))
+	mob.collision_layer = LAYER_INTERACT
+	mob.collision_mask = LAYER_SOLID
+	mob.motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
+	var sprite := Sprite2D.new()
+	sprite.name = "Sprite2D"
+	sprite.texture = load("res://art/deer.png")
+	sprite.position = Vector2(0, -4)
+	_add(mob, sprite, mob)
+	_add(mob, _rect_shape(Vector2(10, 5), Vector2(0, 2)), mob)
+	return mob
+
+
 func _tile_center(cell: Vector2i) -> Vector2:
 	return Vector2(cell * TILE) + Vector2(TILE, TILE) / 2.0
 
@@ -259,8 +278,6 @@ func _build_main(tileset: TileSet) -> Node:
 	var critters := [
 		["Sheep", "Sheep", "wool", "shear", 2.0, 60.0, 2, 3, "sheep", "sheep_sheared",
 			[Vector2i(18, 4), Vector2i(21, 6), Vector2i(24, 3), Vector2i(27, 5), Vector2i(29, 7)]],
-		["Deer", "Deer", "hide", "hunt", 2.5, 90.0, 1, 2, "deer", "",
-			[Vector2i(18, 24), Vector2i(22, 26), Vector2i(26, 23), Vector2i(29, 26)]],
 		["Herb", "Herbs", "herb", "pick", 1.0, 40.0, 1, 3, "herb", "herb_picked",
 			[Vector2i(15, 3), Vector2i(16, 8), Vector2i(15, 21), Vector2i(16, 26), Vector2i(31, 22), Vector2i(31, 4)]],
 	]
@@ -285,6 +302,45 @@ func _build_main(tileset: TileSet) -> Node:
 			(node.get_node("Sprite2D") as Sprite2D).texture = full
 			node.position = _tile_center(cells[i])
 			_add(entities, node, main)
+
+	# Creatures. Deer in the meadow south of town (hunt them, then skin the
+	# body for hide); wolves in the south-west woods attack anyone nearby.
+	var mob_scene: PackedScene = load("res://scenes/mob.tscn")
+	var deer := [Vector2i(18, 24), Vector2i(22, 26), Vector2i(26, 23), Vector2i(29, 26)]
+	for i in deer.size():
+		var mob: Node2D = mob_scene.instantiate()
+		mob.name = "Deer%d" % (i + 1)
+		mob.set("display_name", "Deer")
+		mob.set("max_health", 15)
+		mob.set("speed", 28.0)
+		mob.set("respawn_seconds", 90.0)
+		mob.set("carcass_item", "hide")
+		mob.set("carcass_verb", "skin")
+		mob.set("gather_seconds", 2.5)
+		mob.position = _tile_center(deer[i])
+		_add(entities, mob, main)
+	var wolves := [Vector2i(5, 24), Vector2i(9, 25), Vector2i(7, 27)]
+	for i in wolves.size():
+		var mob: Node2D = mob_scene.instantiate()
+		mob.name = "Wolf%d" % (i + 1)
+		mob.set("display_name", "Wolf")
+		mob.set("max_health", 30)
+		mob.set("hostile", true)
+		mob.set("damage", 6)
+		mob.set("speed", 34.0)
+		mob.set("respawn_seconds", 60.0)
+		(mob.get_node("Sprite2D") as Sprite2D).texture = load("res://art/wolf.png")
+		mob.position = _tile_center(wolves[i])
+		_add(entities, mob, main)
+
+	# Graveyard just west of town: spirits appear in the middle (combat.gd).
+	var stones := [Vector2i(15, 16), Vector2i(17, 16), Vector2i(15, 18), Vector2i(17, 18)]
+	for i in stones.size():
+		var stone := Sprite2D.new()
+		stone.name = "Headstone%d" % (i + 1)
+		stone.texture = load("res://art/headstone.png")
+		stone.position = _tile_center(stones[i]) + Vector2(0, -4)
+		_add(entities, stone, main)
 
 	var hud := CanvasLayer.new()
 	hud.name = "HUD"

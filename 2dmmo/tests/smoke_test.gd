@@ -141,11 +141,10 @@ func _ready() -> void:
 	GameData.recipes.erase(learned_only)
 
 	print("Guild materials")
-	for spec: Array in [["Sheep1", "wool"], ["Deer1", "hide"], ["Herb1", "herb"]]:
+	for spec: Array in [["Sheep1", "wool"], ["Herb1", "herb"]]:
 		var node: Node2D = main.get_node("Entities/" + spec[0])
 		gather(node)
 		check(Inventory.count_of(spec[1]) >= 1, "gathered %s from %s" % [spec[1], spec[0]])
-	check(not main.get_node("Entities/Deer1/Sprite2D").visible, "a hunted deer disappears until it respawns")
 	Server.bag_of(1).add_item("wool", 8)
 	Server.bag_of(1).add_item("hide", 6)
 	as_guild("tailor")
@@ -301,6 +300,92 @@ func _ready() -> void:
 	for i in Bag.MAX_SLOTS:
 		full.add_item("iron_sword", 1, {"quality": "normal"})
 	check(Trade.swap(bag_a, {"log": 1}, full, {}) != "" and bag_a.count_of("log") == 3, "a full bag stops the trade and nothing is lost")
+
+	print("Gear and fighting")
+	Server.check_gather_time = false
+	var gear_bag := Server.bag_of(1)
+	gear_bag.slots.clear()
+	Server.send_bag(1)
+	var deer: Node2D = main.get_node("Entities/Deer1")
+	player.global_position = deer.global_position + Vector2(-10, 0)
+	Combat.request_attack(Vector2.RIGHT)
+	check(deer.health == deer.max_health, "no weapon, no attack")
+	gear_bag.add_item("iron_sword", 1, {"quality": "normal", "stats": {"damage": 10, "speed": 5, "durability": 100}})
+	gear_bag.add_item("leather_armor", 1)
+	Combat.request_equip(0)
+	check(str(Combat.equipment.weapon.get("id", "")) == "iron_sword" and gear_bag.count_of("iron_sword") == 0, "clicking a sword in the bag wears it")
+	Combat.request_equip(0)
+	check(Combat.armor_of(1) == 5 and gear_bag.slots.is_empty(), "armor is worn too")
+	Combat.request_attack(Vector2.RIGHT)
+	check(deer.health == 5, "a sword hits the deer for 10")
+	Combat.request_attack(Vector2.RIGHT)
+	check(deer.health == 5, "you can't swing again straight away")
+	Combat._ready_at.clear()
+	Combat.request_attack(Vector2.RIGHT)
+	check(deer.state == "carcass" and deer.get_interaction() == "gather", "the deer falls and can be skinned")
+	gather(deer)
+	check(gear_bag.count_of("hide") >= 1 and deer.state == "gone", "skinning the body gives hide")
+	Combat.request_unequip("armor")
+	check(Combat.armor_of(1) == 0 and gear_bag.count_of("leather_armor") == 1, "clicking worn armor takes it off")
+
+	print("Bow and arrows")
+	gear_bag.add_item("log", 1)
+	Server.request_craft("make_arrows")
+	check(gear_bag.count_of("arrow") == 5, "anyone can make 5 arrows from a log in the bag")
+	gear_bag.add_item("wooden_bow", 1)
+	Combat.request_equip(gear_bag.slots.size() - 1)
+	check(str(Combat.equipment.weapon.get("id", "")) == "wooden_bow" and gear_bag.count_of("iron_sword") == 1, "the bow swaps places with the sword")
+	var deer2: Node2D = main.get_node("Entities/Deer2")
+	player.global_position = deer2.global_position + Vector2(-40, 0)
+	Combat._ready_at.clear()
+	Combat.request_attack(Vector2.RIGHT)
+	check(deer2.health == deer2.max_health - 7 and gear_bag.count_of("arrow") == 4, "an arrow hits a deer 40 pixels away")
+	Combat._ready_at.clear()
+	player.global_position = Vector2(23 * 16 + 8, 15 * 16 + 8)
+	var shot_from := player.global_position
+	Combat.request_attack(Vector2.UP)
+	check(Combat.ground_arrows.size() == 1 and gear_bag.count_of("arrow") == 3, "a missed arrow lands on the ground")
+	var landed: Vector2 = Combat.ground_arrows.values()[0] if not Combat.ground_arrows.is_empty() else Vector2.ZERO
+	check(absf(landed.distance_to(shot_from) - 50.0) < 0.5, "it flies 50 pixels")
+	await get_tree().process_frame
+	check(main.get_node_or_null("Entities/Arrow_%d" % Combat.ground_arrows.keys()[0]) != null, "the arrow shows on the ground")
+	player.global_position = landed + Vector2(0, 8)
+	Combat.request_pickup_arrow(Combat.ground_arrows.keys()[0])
+	check(Combat.ground_arrows.is_empty() and gear_bag.count_of("arrow") == 4, "E picks the arrow back up")
+
+	print("Wolves, death and the graveyard")
+	Combat.reset_player(1)
+	var wolf: Node2D = main.get_node("Entities/Wolf1")
+	player.global_position = wolf.global_position + Vector2(8, 0)
+	for i in 30:
+		await get_tree().physics_frame
+	check(Combat._hp[1] < Combat.BASE_HEALTH, "a wolf bites anyone close")
+	var fell_at := player.global_position
+	Combat.hurt_player(1, 999, "a test")
+	check(Combat.is_dead(1) and player.is_spirit(), "at 0 health you die")
+	check(player.global_position.distance_to(Combat.GRAVEYARD) < 1.0, "your spirit appears at the graveyard")
+	var corpse: Node2D = main.get_node_or_null("Entities/Corpse_1")
+	check(corpse != null and corpse.global_position == fell_at, "your body stays where you fell")
+	check(Server.reachable(1, Server.path_of(iron)) == null, "spirits can't gather or use things")
+	Combat.request_resurrect()
+	check(Combat.is_dead(1), "you can't come back from the graveyard")
+	Server.save_world()
+	check(Server._saved_players.Smoke.get("dead") != null, "being dead is saved")
+	player.global_position = fell_at + Vector2(6, 0)
+	Combat.request_resurrect()
+	check(not Combat.is_dead(1) and Combat._hp[1] == Combat.BASE_HEALTH / 2, "walking back to your body brings you back with half health")
+	await get_tree().process_frame
+	check(main.get_node_or_null("Entities/Corpse_1") == null and not player.is_spirit(), "the body is gone and you're solid again")
+	player.global_position = Vector2(23 * 16 + 8, 15 * 16 + 8)
+	gear_bag.add_item("healing_salve", 1)
+	Combat._hp[1] = 10
+	var salve_index := -1
+	for i in gear_bag.slots.size():
+		if gear_bag.slots[i].id == "healing_salve":
+			salve_index = i
+	Combat.request_use_item(salve_index)
+	check(Combat._hp[1] == 35 and gear_bag.count_of("healing_salve") == 0, "a healing salve heals 25")
+	Combat.reset_player(1)
 
 	print("Testing shortcut")
 	Server.check_gather_time = false

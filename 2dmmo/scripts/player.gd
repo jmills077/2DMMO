@@ -47,6 +47,9 @@ var _roll_direction := Vector2.RIGHT
 var _last_direction := Vector2.RIGHT
 var _reach_query := PhysicsShapeQueryParameters2D.new()
 var _name_label: Label
+var _health_bar: Node2D
+var _attack_cooldown := 0.0
+var _last_health := -1
 
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var camera: Camera2D = $Camera2D
@@ -70,6 +73,13 @@ func _ready() -> void:
 	_name_label.add_theme_constant_override("outline_size", 2)
 	add_child(_name_label)
 	Town.changed.connect(_update_label)
+	_health_bar = preload("res://scripts/world/health_bar.gd").new()
+	_health_bar.position = Vector2(0, -14)
+	add_child(_health_bar)
+	Combat.health_changed.connect(_on_health_changed)
+	Combat.dead_changed.connect(_on_dead_changed)
+	_on_dead_changed.call_deferred(peer_id())
+	_on_health_changed.call_deferred(peer_id())
 
 	var circle := CircleShape2D.new()
 	circle.radius = REACH
@@ -90,10 +100,49 @@ func is_local() -> bool:
 	return multiplayer.multiplayer_peer != null and is_multiplayer_authority()
 
 
+func peer_id() -> int:
+	return name.to_int()
+
+
+## A spirit: dead, walking back to its body.
+func is_spirit() -> bool:
+	return Combat.dead.has(peer_id())
+
+
+## The server moved this character (to the graveyard when it dies).
+func teleport(where: Vector2) -> void:
+	global_position = where
+	sync_position = where
+	_reset_gather()
+
+
+func _on_health_changed(peer: int) -> void:
+	if peer != peer_id():
+		return
+	var entry: Array = Combat.health.get(peer, [0, 0])
+	if int(entry[1]) <= 0:
+		return
+	_health_bar.ratio = float(entry[0]) / float(entry[1]) if not is_spirit() else 1.0
+	# Flash red when hurt.
+	if _last_health >= 0 and int(entry[0]) < _last_health and not is_spirit():
+		sprite.modulate = Color(1.0, 0.35, 0.35)
+		create_tween().tween_property(sprite, "modulate", Color.WHITE, 0.25)
+	_last_health = int(entry[0])
+
+
+func _on_dead_changed(peer: int) -> void:
+	if peer != peer_id():
+		return
+	# A spirit is pale and see-through.
+	modulate = Color(0.7, 0.85, 1.0, 0.55) if is_spirit() else Color.WHITE
+	_health_bar.visible = not is_spirit()
+	_update_label()
+
+
 ## The name over the character, in its guild's color.
 func _update_label() -> void:
 	var guild := GameData.get_guild(Town.guild_of(player_name))
-	_name_label.text = player_name
+	_name_label.text = player_name + (" (spirit)" if is_spirit() else "")
 	var color := Color(str(guild.color)) if not guild.is_empty() else Color.WHITE
 	_name_label.add_theme_color_override("font_color", color)
 	_name_label.tooltip_text = str(guild.get("member", ""))
@@ -132,6 +181,9 @@ func _physics_process(delta: float) -> void:
 	sync_position = position
 
 	_cooldown = maxf(_cooldown - delta, 0.0)
+	_attack_cooldown = maxf(_attack_cooldown - delta, 0.0)
+	if Input.is_action_just_pressed("attack") and not Events.ui_blocking and _attack_cooldown <= 0.0:
+		_attack()
 	_update_target()
 	_handle_interaction(delta)
 
@@ -152,6 +204,9 @@ func _update_target() -> void:
 	for hit: Dictionary in get_world_2d().direct_space_state.intersect_shape(_reach_query, 16):
 		var node := hit.collider as Node2D
 		if node == null or not node.has_method("get_prompt") or node.get_prompt() == "":
+			continue
+		# A spirit can only get back into its body.
+		if is_spirit() and not node.is_in_group("corpse"):
 			continue
 		var distance := global_position.distance_squared_to(node.global_position)
 		if distance < best_distance:
@@ -175,6 +230,16 @@ func _handle_interaction(delta: float) -> void:
 				_target.use()
 		_:
 			_reset_gather()
+
+
+## R: attack the way you last moved. The server checks the weapon and the hit.
+func _attack() -> void:
+	if is_spirit():
+		return
+	var weapon: Dictionary = Combat.equipment.get("weapon", {})
+	_attack_cooldown = Combat.attack_seconds(weapon) if not weapon.is_empty() else 0.3
+	_reset_gather()
+	Combat.request_attack.rpc_id(1, _last_direction)
 
 
 ## Gathering timing game: tap E to start the bar (the server picks a zone),

@@ -23,7 +23,7 @@ func _ready() -> void:
 	Events.toast.connect(func(text: String) -> void: toasts.append(text))
 	Events.local_player_ready.connect(_on_ready_to_play)
 	Events.gather_zone.connect(func(_p: String, start: float, width: float) -> void: _zone = [start, width])
-	get_tree().create_timer(30.0).timeout.connect(func() -> void:
+	get_tree().create_timer(50.0).timeout.connect(func() -> void:
 		print("BOT %s FAIL timed out" % role)
 		get_tree().quit(1))
 
@@ -100,6 +100,22 @@ func _miner() -> void:
 		await get_tree().create_timer(0.1).timeout
 		waited += 0.1
 	check(Inventory.count_of("coal") == 1, "received the coal in the trade")
+	# Fighting over the network.
+	var me := multiplayer.get_unique_id()
+	check(Combat.health.get(me, [0, 0])[0] == Combat.BASE_HEALTH, "the server told us our health")
+	toasts.clear()
+	Combat.request_attack.rpc_id(1, Vector2.RIGHT)
+	await get_tree().create_timer(0.3).timeout
+	check(toasts.any(func(t: String) -> bool: return t.begins_with("Equip a weapon")), "attacking with no weapon is refused")
+	var wolf: Node2D = _world().get_node("Entities/Wolf1")
+	player.global_position = wolf.global_position + Vector2(8, 0)
+	waited = 0.0
+	while Combat.health.get(me, [0, 0])[0] >= Combat.BASE_HEALTH and waited < 4.0:
+		await get_tree().create_timer(0.1).timeout
+		waited += 0.1
+	check(Combat.health.get(me, [0, 0])[0] < Combat.BASE_HEALTH, "a wolf bit us and our health went down")
+	check(wolf.position.distance_to(player.global_position) < 30.0, "we see the wolf where the server has it")
+	player.global_position = Server.SPAWN_POINT
 	await get_tree().create_timer(1.0).timeout
 
 
@@ -223,8 +239,73 @@ func _shot() -> void:
 		Trade.request_accept(true)
 	await get_tree().create_timer(1.5).timeout
 	_save_shot("trade")
+	await _shot_fight(host)
 	# The host stays longer so the other window isn't disconnected mid-shot.
-	await get_tree().create_timer(6.0 if host else 1.0).timeout
+	await get_tree().create_timer(4.0 if host else 1.0).timeout
+
+
+## Fighting: the host gears up, swings and shoots; the other window is
+## killed near the wolves and its spirit appears at the graveyard.
+func _shot_fight(host: bool) -> void:
+	var hud := _world().get_node("HUD")
+	hud._close_all()
+	var partner := 0
+	for other: Node2D in get_tree().get_nodes_in_group("player"):
+		if other != player:
+			partner = other.name.to_int()
+	var me := multiplayer.get_unique_id()
+	if not host:
+		var wolf: Node2D = _world().get_node("Entities/Wolf1")
+		player.global_position = wolf.global_position + Vector2(10, 0)
+		var waited := 0.0
+		while not Combat.dead.has(me) and waited < 10.0:
+			await get_tree().create_timer(0.1).timeout
+			waited += 0.1
+		await get_tree().create_timer(0.6).timeout
+		_save_shot("spirit")
+		await get_tree().create_timer(2.5).timeout
+		return
+	var bag := Server.bag_of(1)
+	bag.add_item("iron_sword", 1, {"quality": "high", "stats": {"damage": 11, "speed": 5, "durability": 100}, "boosted_stat": "damage"})
+	bag.add_item("leather_armor", 1, {"quality": "normal", "stats": {"armor": 5, "agility": 4, "durability": 90}})
+	bag.add_item("wooden_bow", 1, {"quality": "normal", "stats": {"damage": 7, "speed": 7, "durability": 70}})
+	bag.add_item("arrow", 10)
+	bag.add_item("healing_salve", 2)
+	Server.send_bag(1)
+	_equip("iron_sword")
+	_equip("leather_armor")
+	hud._set_inventory_visible(true)
+	await get_tree().create_timer(0.6).timeout
+	_save_shot("gear")
+	hud._close_all()
+	var deer: Node2D = _world().get_node("Entities/Deer3")
+	player.global_position = deer.global_position + Vector2(-12, 0)
+	await get_tree().create_timer(0.4).timeout
+	Combat.request_attack(Vector2.RIGHT)
+	_equip("wooden_bow")
+	Combat._ready_at.clear()
+	Combat.request_attack(Vector2.LEFT)
+	await get_tree().create_timer(0.5).timeout
+	_equip("iron_sword")
+	Combat._ready_at.clear()
+	Combat.request_attack(Vector2.RIGHT)
+	await get_tree().create_timer(0.04).timeout
+	_save_shot("fight")
+	await get_tree().create_timer(1.0).timeout
+	Combat.hurt_player(partner, 999, "a Wolf")
+	await get_tree().create_timer(0.3).timeout
+	if Combat._bodies.has(partner):
+		player.global_position = Combat._bodies[partner] + Vector2(-24, 8)
+	await get_tree().create_timer(0.8).timeout
+	_save_shot("body")
+
+
+func _equip(id: String) -> void:
+	var bag := Server.bag_of(1)
+	for i in bag.slots.size():
+		if bag.slots[i].id == id:
+			Combat.request_equip(i)
+			return
 
 
 func _save_shot(label: String) -> void:
