@@ -32,6 +32,7 @@ var _connect_panel: PanelContainer
 var _name_field: LineEdit
 var _address_field: LineEdit
 var _town_ui: Control
+var _trade_ui: Control
 
 
 func _ready() -> void:
@@ -65,6 +66,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("refill_resources"):
 		if Net.mode != "":
 			Server.request_refill_resources.rpc_id(1)
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("trade"):
+		if Net.mode != "":
+			_trade_ui.invite_nearest()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("crafting"):
 		_set_crafting_visible(not _craft_panel.visible)
@@ -300,11 +305,12 @@ func _on_join_pressed() -> void:
 func _close_all() -> void:
 	_set_inventory_visible(false)
 	_town_ui.close()
+	_trade_ui.close()
 
 
 func _update_blocking() -> void:
 	Events.ui_blocking = _inventory_panel.visible or _craft_panel.visible or _connect_panel.visible \
-			or _town_ui.is_open()
+			or _town_ui.is_open() or _trade_ui.is_open()
 	_prompt.visible = _prompt.text != "" and not Events.ui_blocking
 
 
@@ -358,7 +364,7 @@ func _build_layout() -> void:
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_root)
 
-	var help := _label("WASD move   E interact   I bag   C craft   F5 save   Esc close")
+	var help := _label("WASD move   E interact   Space roll   I bag   C craft   T trade   Esc close")
 	help.position = Vector2(4, 2)
 	help.modulate.a = 0.75
 	_root.add_child(help)
@@ -424,6 +430,9 @@ func _build_layout() -> void:
 	_town_ui = preload("res://scripts/ui/town_ui.gd").new()
 	_root.add_child(_town_ui)
 	_town_ui.open_changed.connect(_update_blocking)
+	_trade_ui = preload("res://scripts/ui/trade_ui.gd").new()
+	_root.add_child(_trade_ui)
+	_trade_ui.open_changed.connect(_update_blocking)
 
 	var menu: Array = _panel("Play")
 	_connect_panel = menu[0]

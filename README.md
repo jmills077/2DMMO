@@ -26,6 +26,7 @@ To play with someone on your home network, start the game with `-- --host` on yo
 | Space | Roll: a quick burst in the direction you are moving |
 | I or Tab | Open or close your bag |
 | C | Open or close your crafting menu (craft anywhere) |
+| T | Ask the nearest player to trade (stand right next to them) |
 | F5 | Save the world (the host also saves every minute, when anyone leaves, and when it closes) |
 | Esc | Close menus |
 | F9 | Testing only: refill every rock, sheep, deer, herb and tree for everyone |
@@ -54,6 +55,14 @@ To play with someone on your home network, start the game with `-- --host` on yo
 - **Personal crafting menu (C)**: craft anywhere, no stations needed. The menu lists only the recipes you know: your guild's starting recipes. Recipes marked `"starter": false` must be learned first (from guild trainers, later). Anyone can gather anything. Many recipes need another guild's materials, for example a woodworker's bow needs a tailor's string.
 - **New materials**: shear sheep in the pasture north of town for wool, hunt deer in the meadow south of town for hide, and pick herbs at the forest edges.
 - Upgrades so far: Palisade, Watchtower and Supply Silo. They don't do anything yet; invasions in milestone 4 will use them.
+
+## Player trading
+
+- Stand next to another player and press **T**. They get a "wants to trade with you" prompt with Trade and No thanks buttons.
+- The trade window shows what you give and what they give. Add items from your bag with +1 or All, and take them back with -1.
+- Both players press **Accept trade**. Changing either offer clears both accepts, so nobody can swap something in at the last second.
+- The host checks both bags still hold the items and have room, then swaps everything at once. Crafted gear keeps its quality and stats.
+- Cancel, Esc, walking more than about 6 tiles apart, or leaving the game cancels the trade. Nothing changes hands unless both accept.
 
 ## Changing the game without code
 

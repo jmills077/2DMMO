@@ -11,6 +11,7 @@ const BINDINGS := {
 	"roll": [KEY_SPACE],
 	"inventory": [KEY_I, KEY_TAB],
 	"crafting": [KEY_C],
+	"trade": [KEY_T],
 	"save_game": [KEY_F5],
 	"refill_resources": [KEY_F9],
 	"close_menu": [KEY_ESCAPE],

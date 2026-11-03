@@ -82,8 +82,25 @@ func _miner() -> void:
 	Town.request_donate.rpc_id(1, Server.path_of(stockpile), "iron_ore", 1)
 	await get_tree().create_timer(0.3).timeout
 	check(Town.stock_of("iron_ore") == 1, "donated ore to the town")
-	# Stay online so the watcher can see this character.
-	await get_tree().create_timer(8.0).timeout
+	# Stay online for the watcher, and accept its trade.
+	var waited := 0.0
+	while Trade.invite_from == "" and waited < 15.0:
+		await get_tree().create_timer(0.1).timeout
+		waited += 0.1
+	check(Trade.invite_from == "Watcher", "got a trade invite from the watcher")
+	Trade.request_answer_invite.rpc_id(1, true)
+	waited = 0.0
+	while (Trade.current.is_empty() or Trade.current.theirs.is_empty()) and waited < 5.0:
+		await get_tree().create_timer(0.1).timeout
+		waited += 0.1
+	check(Trade.current.get("theirs", {}).get("coal", 0) == 1, "sees the watcher offering 1 coal")
+	Trade.request_accept.rpc_id(1, true)
+	waited = 0.0
+	while not Trade.current.is_empty() and waited < 5.0:
+		await get_tree().create_timer(0.1).timeout
+		waited += 0.1
+	check(Inventory.count_of("coal") == 1, "received the coal in the trade")
+	await get_tree().create_timer(1.0).timeout
 
 
 func _watcher() -> void:
@@ -109,7 +126,26 @@ func _watcher() -> void:
 	check(toasts.has("Someone got there first"), "told someone got there first")
 	var coal: Node2D = _world().get_node("Entities/CoalRock1")
 	await _gather(coal)
-	check(Inventory.count_of("coal") > 0, "mined coal through the server")
+	var coal_count := Inventory.count_of("coal")
+	check(coal_count > 0, "mined coal through the server")
+	if miner == null:
+		return
+	player.global_position = miner.global_position + Vector2(14, 0)
+	await get_tree().create_timer(0.4).timeout
+	Trade.request_invite.rpc_id(1, miner.name.to_int())
+	var waited := 0.0
+	while Trade.current.is_empty() and waited < 5.0:
+		await get_tree().create_timer(0.1).timeout
+		waited += 0.1
+	check(Trade.current.get("partner", "") == "Miner", "trade window opened with the miner")
+	Trade.request_set_offer.rpc_id(1, "coal", 1)
+	await get_tree().create_timer(0.3).timeout
+	Trade.request_accept.rpc_id(1, true)
+	waited = 0.0
+	while not Trade.current.is_empty() and waited < 5.0:
+		await get_tree().create_timer(0.1).timeout
+		waited += 0.1
+	check(Trade.current.is_empty() and Inventory.count_of("coal") == coal_count - 1, "trade completed: gave 1 coal")
 
 
 func _shot() -> void:
@@ -156,9 +192,37 @@ func _shot() -> void:
 		_world().get_node("HUD")._set_crafting_visible(true)
 		await get_tree().create_timer(0.5).timeout
 		_save_shot("craft")
+		_world().get_node("HUD")._close_all()
 	player.global_position = Vector2(23 * 16 + 8, (6 if host else 24) * 16 + 8)
 	await get_tree().create_timer(1.5).timeout
 	_save_shot("fields")
+	# Trade: meet in the square; the host invites, the other accepts.
+	player.global_position = Vector2(23 * 16 + (0 if host else 14), 15 * 16 + 8)
+	if not host:
+		Trade.invited.connect(func(from_name: String) -> void:
+			if from_name != "":
+				Trade.request_answer_invite.rpc_id(1, true), CONNECT_ONE_SHOT)
+	await get_tree().create_timer(1.0).timeout
+	if host:
+		# Wait (up to 10s) for the other window's player to arrive in the square.
+		var partner: Node2D = null
+		for i in 50:
+			for other: Node2D in get_tree().get_nodes_in_group("player"):
+				if other != player and other.global_position.distance_to(player.global_position) <= Trade.START_DISTANCE:
+					partner = other
+			if partner != null:
+				break
+			await get_tree().create_timer(0.2).timeout
+		await get_tree().create_timer(0.5).timeout
+		if partner != null:
+			Trade.request_invite(partner.name.to_int())
+		await get_tree().create_timer(0.8).timeout
+		Server.bag_of(1).add_item("log", 4)
+		Server.send_bag(1)
+		Trade.request_set_offer("log", 3)
+		Trade.request_accept(true)
+	await get_tree().create_timer(1.5).timeout
+	_save_shot("trade")
 	# The host stays longer so the other window isn't disconnected mid-shot.
 	await get_tree().create_timer(6.0 if host else 1.0).timeout
 

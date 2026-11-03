@@ -4,6 +4,7 @@ extends Node
 ## Run from the 2dmmo folder:  godot --headless --path . res://tests/smoke_test.tscn
 
 const SAVE := "user://test_world.json"
+const Bag := preload("res://scripts/bag.gd")
 
 var failures: Array[String] = []
 var main: Node
@@ -283,6 +284,23 @@ func _ready() -> void:
 	while player._gather_state == "filling":
 		await get_tree().physics_frame
 	check(player._gather_state == "", "letting the bar run out resets it")
+
+	print("Trading")
+	var bag_a := Bag.new()
+	var bag_b := Bag.new()
+	bag_a.add_item("log", 5)
+	bag_a.add_item("iron_sword", 1, {"quality": "high", "stats": {"damage": 11, "speed": 5, "durability": 100}})
+	bag_b.add_item("wool", 3)
+	check(Trade.swap(bag_a, {"log": 2, "iron_sword": 1}, bag_b, {"wool": 3}) == "", "a fair trade goes through")
+	check(bag_a.count_of("wool") == 3 and bag_a.count_of("log") == 3 and bag_a.count_of("iron_sword") == 0, "first bag got wool and kept 3 logs")
+	check(bag_b.count_of("log") == 2 and bag_b.count_of("wool") == 0, "second bag got the logs")
+	var traded_sword: Dictionary = bag_b.slots.filter(func(s: Dictionary) -> bool: return s.id == "iron_sword")[0]
+	check(traded_sword.data.quality == "high", "traded gear keeps its high quality")
+	check(Trade.swap(bag_a, {"log": 99}, bag_b, {}) != "", "can't trade items you don't have")
+	var full := Bag.new()
+	for i in Bag.MAX_SLOTS:
+		full.add_item("iron_sword", 1, {"quality": "normal"})
+	check(Trade.swap(bag_a, {"log": 1}, full, {}) != "" and bag_a.count_of("log") == 3, "a full bag stops the trade and nothing is lost")
 
 	print("Testing shortcut")
 	Server.check_gather_time = false

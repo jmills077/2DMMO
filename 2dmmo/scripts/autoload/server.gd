@@ -96,6 +96,7 @@ func remove_player(peer_id: int) -> void:
 	if not _names.has(peer_id):
 		return
 	var player_name: String = _names[peer_id]
+	Trade.player_left(peer_id)
 	_store_player(peer_id)
 	var node := player_node(peer_id)
 	if node:
