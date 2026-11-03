@@ -26,6 +26,10 @@ signal state_changed
 @export var yield_min := 1
 @export var yield_max := 2
 @export var gather_seconds := 2.0
+## Raiders (invasions) march on the town and attack it, never players.
+@export var raider := false
+## Saved with the world and respawned. Raiders are not.
+@export var persistent := true
 
 const ATTACK_RANGE := 14.0
 const WANDER_RADIUS := 28.0
@@ -46,12 +50,14 @@ var _wander_wait := 0.0
 var _flee_left := 0.0
 var _flee_from := Vector2.ZERO
 var _bar: Node2D
+var _wall_wait := -1.0  # raiders: seconds left hacking at the palisade (-1 = not yet)
 
 @onready var sprite: Sprite2D = $Sprite2D
 
 
 func _ready() -> void:
-	add_to_group("persist")
+	if persistent:
+		add_to_group("persist")
 	add_to_group("mob")
 	home = position
 	_net_position = position
@@ -103,12 +109,14 @@ func take_damage(amount: int, attacker_peer: int) -> bool:
 	var attacker := Server.player_node(attacker_peer)
 	if hostile:
 		_target_peer = attacker_peer
-	elif attacker:
+	elif attacker and not raider:
 		_flee_left = FLEE_SECONDS
 		_flee_from = attacker.global_position
 	if health <= 0:
 		state = "carcass" if carcass_item != "" else "gone"
 		_respawn_left = respawn_seconds
+		if raider:
+			Invasion.raider_died(self)
 	_refresh()
 	state_changed.emit()
 	return health <= 0
@@ -117,6 +125,8 @@ func take_damage(amount: int, attacker_peer: int) -> bool:
 func _physics_process(delta: float) -> void:
 	if not multiplayer.has_multiplayer_peer() or not multiplayer.is_server():
 		_follow_network(delta)
+		return
+	if state != "alive" and not persistent:
 		return
 	if state != "alive":
 		_respawn_left -= delta
@@ -133,6 +143,8 @@ func _physics_process(delta: float) -> void:
 
 func _think(delta: float) -> Vector2:
 	_attack_left -= delta
+	if raider:
+		return _raid(delta)
 	if hostile:
 		var target := _pick_target()
 		if target:
@@ -162,6 +174,29 @@ func _think(delta: float) -> Vector2:
 		_wander_to = home + Vector2.from_angle(randf() * TAU) * randf() * WANDER_RADIUS
 		return Vector2.ZERO
 	return to.normalized() * speed * 0.5
+
+
+## Raiders walk to the town square and attack it. A palisade holds them at
+## the gate for a while first.
+func _raid(delta: float) -> Vector2:
+	var gate := Invasion.gate_for(global_position)
+	if _wall_wait != 0.0 and gate != Vector2.INF:
+		if _wall_wait < 0.0 and global_position.distance_to(gate) <= 6.0:
+			_wall_wait = Invasion.PALISADE_HOLD_SECONDS
+		if _wall_wait > 0.0:
+			_wall_wait = maxf(_wall_wait - delta, 0.0)
+			if _attack_left <= 0.0:
+				_attack_left = attack_seconds
+			return Vector2.ZERO
+		if _wall_wait < 0.0:
+			return (gate - global_position).normalized() * speed
+	var to_town := Invasion.TOWN_CENTER - global_position
+	if to_town.length() <= 18.0:
+		if _attack_left <= 0.0:
+			_attack_left = attack_seconds
+			Invasion.hurt_town(damage)
+		return Vector2.ZERO
+	return to_town.normalized() * speed
 
 
 ## The player this creature is after, or null.

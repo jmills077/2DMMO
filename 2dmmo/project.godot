@@ -27,6 +27,7 @@ Server="*res://scripts/autoload/server.gd"
 Town="*res://scripts/autoload/town.gd"
 Trade="*res://scripts/autoload/trade.gd"
 Combat="*res://scripts/autoload/combat.gd"
+Invasion="*res://scripts/autoload/invasion.gd"
 
 [display]
 

@@ -116,6 +116,18 @@ func _miner() -> void:
 	check(Combat.health.get(me, [0, 0])[0] < Combat.BASE_HEALTH, "a wolf bit us and our health went down")
 	check(wolf.position.distance_to(player.global_position) < 30.0, "we see the wolf where the server has it")
 	player.global_position = Server.SPAWN_POINT
+	# An invasion, started from this window with F10.
+	Invasion.request_start_now.rpc_id(1)
+	waited = 0.0
+	while Invasion.raiders().is_empty() and waited < 4.0:
+		await get_tree().create_timer(0.1).timeout
+		waited += 0.1
+	check(Invasion.state.active and Invasion.state.raiders_left == 3, "F10 started an invasion on the host")
+	check(not Invasion.raiders().is_empty(), "we see the raiders arrive")
+	var raider: Node2D = Invasion.raiders()[0] if not Invasion.raiders().is_empty() else null
+	var raider_start := raider.global_position if raider else Vector2.ZERO
+	await get_tree().create_timer(1.0).timeout
+	check(raider != null and is_instance_valid(raider) and raider.global_position.distance_to(raider_start) > 5.0, "the raiders move on our screen too")
 	await get_tree().create_timer(1.0).timeout
 
 
@@ -298,6 +310,23 @@ func _shot_fight(host: bool) -> void:
 		player.global_position = Combat._bodies[partner] + Vector2(-24, 8)
 	await get_tree().create_timer(0.8).timeout
 	_save_shot("body")
+	# An invasion at the east gate, with a palisade and watchtower built.
+	Town.state.built = ["palisade", "watchtower", "silo"]
+	Town.publish()
+	Invasion.start()
+	while Invasion._to_spawn > 0:
+		Invasion._spawn_left = 0.0
+		await get_tree().physics_frame
+	var raiders := Invasion.raiders()
+	for i in raiders.size():
+		raiders[i].global_position = Invasion.GATES[1] + Vector2(10 + i * 14, (i % 2) * 6 - 3)
+	player.global_position = Invasion.GATES[1] + Vector2(-20, 10)
+	_equip("wooden_bow")
+	await get_tree().create_timer(2.5).timeout
+	Combat._ready_at.clear()
+	Combat.request_attack(Vector2.RIGHT)
+	await get_tree().create_timer(0.1).timeout
+	_save_shot("invasion")
 
 
 func _equip(id: String) -> void:

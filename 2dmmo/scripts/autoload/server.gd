@@ -88,6 +88,7 @@ func add_player(peer_id: int, wanted_name: String) -> String:
 	})
 	send_bag(peer_id)
 	Combat.player_joined(peer_id, record)
+	Invasion.player_joined(peer_id)
 	Town.player_joined(player_name)
 	toast_all("%s joined" % player_name)
 	return player_name
@@ -290,7 +291,7 @@ func save_world() -> void:
 	var objects := {}
 	for node: Node in get_tree().get_nodes_in_group("persist"):
 		objects[path_of(node)] = node.get_save_state()
-	var data := {"version": SAVE_VERSION, "world": objects, "players": _saved_players, "town": Town.to_save_data()}
+	var data := {"version": SAVE_VERSION, "world": objects, "players": _saved_players, "town": Town.to_save_data(), "invasion": Invasion.to_save_data()}
 	var file := FileAccess.open(save_path, FileAccess.WRITE)
 	if file == null:
 		push_error("Could not write %s" % save_path)
@@ -301,6 +302,7 @@ func save_world() -> void:
 func _load_world() -> void:
 	_saved_players = {}
 	Town.reset()
+	Invasion.reset()
 	if not FileAccess.file_exists(save_path):
 		Town.publish()
 		return
@@ -316,6 +318,7 @@ func _load_world() -> void:
 			node.apply_save_state(objects[path])
 	_saved_players = data.get("players", {})
 	Town.load_save_data(data.get("town", {}))
+	Invasion.load_save_data(data.get("invasion", {}))
 
 
 func delete_save() -> void:

@@ -20,6 +20,6 @@
 	"cloth_robe": { "name": "Cloth Robe", "icon": "res://art/icon_cloth_robe.png", "stack": 1, "description": "Light, comfortable, and favored by healers.", "stats": { "armor": 3, "focus": 6, "durability": 60 }, "slot": "armor" },
 	"leather_armor": { "name": "Leather Armor", "icon": "res://art/icon_leather_armor.png", "stack": 1, "description": "Supple armor laced with string.", "stats": { "armor": 5, "agility": 4, "durability": 90 }, "slot": "armor" },
 	"wooden_bow": { "name": "Wooden Bow", "icon": "res://art/icon_wooden_bow.png", "stack": 1, "description": "A plank bow with a tailor's string.", "stats": { "damage": 7, "speed": 7, "durability": 70 }, "slot": "weapon", "ranged": true },
-	"spike_trap": { "name": "Spike Trap", "icon": "res://art/icon_spike_trap.png", "stack": 10, "description": "A sprung trap for the town's defenses (milestone 4)." },
+	"spike_trap": { "name": "Spike Trap", "icon": "res://art/icon_spike_trap.png", "stack": 10, "description": "Click it in your bag to set it where you stand. The first invader to step on it takes 15 damage." },
 	"arrow": { "name": "Arrow", "icon": "res://art/icon_arrow.png", "stack": 50, "description": "Shot from a bow. Missed arrows land on the ground; pick them up with E." }
 }

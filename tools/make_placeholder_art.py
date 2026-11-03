@@ -616,4 +616,12 @@ save(from_rows([
     "....SssssssS....", "...GSSSSSSSSG...", "..GgGgGgGgGgGG..", "................",
 ]), "headstone")
 
+# --- Invasions (milestone 4) ---
+save(from_rows([
+    "................", "................", "................", "......xxxx......",
+    "....x.xxxx.x....", ".....xexxex.....", "......xxxx......", ".......xx.......",
+    ".....BBBBBB.....", "....xBnBBnBx..i.", "....xBBBBBBx.iI.", ".....BBBBBB..b..",
+    ".....nn..nn.....", ".....nn..nn.....", ".....xx..xx.....", "................",
+]), "goblin")
+
 print("Wrote placeholder art to", OUT)

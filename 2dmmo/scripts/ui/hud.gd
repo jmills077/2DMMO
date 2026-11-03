@@ -38,6 +38,7 @@ var _health_text: Label
 var _spirit_banner: Label
 var _gear_row: HBoxContainer
 var _arrow_button: Button
+var _invasion_line: Label
 var _trade_ui: Control
 
 
@@ -74,6 +75,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("refill_resources"):
 		if Net.mode != "":
 			Server.request_refill_resources.rpc_id(1)
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("start_invasion"):
+		if Net.mode != "":
+			Invasion.request_start_now.rpc_id(1)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("trade"):
 		if Net.mode != "":
@@ -118,6 +123,7 @@ func _on_gather_failed() -> void:
 
 func _process(delta: float) -> void:
 	_update_spirit_banner()
+	_update_invasion_line()
 	if _fail_left <= 0.0:
 		return
 	_fail_left -= delta
@@ -181,6 +187,20 @@ func _update_spirit_banner() -> void:
 	_spirit_banner.visible = true
 
 
+## Top of the screen: when the next invasion comes, or how the fight is going.
+func _update_invasion_line() -> void:
+	var state: Dictionary = Invasion.state
+	if bool(state.get("active", false)):
+		_invasion_line.text = "INVASION %d   Raiders left: %d   Town: %d / %d" % [
+			int(state.number), int(state.raiders_left), int(state.town_health), int(state.town_max)]
+		_invasion_line.add_theme_color_override("font_color", Color(1.0, 0.5, 0.4))
+	else:
+		var left := int(ceil(float(state.get("seconds_left", 0.0))))
+		_invasion_line.text = "Next invasion in %d:%02d" % [left / 60, left % 60]
+		_invasion_line.add_theme_color_override("font_color", Color(1.0, 0.9, 0.7))
+	_invasion_line.visible = Net.mode != ""
+
+
 func _compass(v: Vector2) -> String:
 	var names := ["east", "south-east", "south", "south-west", "west", "north-west", "north", "north-east"]
 	return names[wrapi(int(round(v.angle() / (PI / 4.0))), 0, 8)]
@@ -236,6 +256,8 @@ func _on_bag_slot_input(event: InputEvent, index: int) -> void:
 		Combat.request_equip.rpc_id(1, index)
 	elif item.has("heal"):
 		Combat.request_use_item.rpc_id(1, index)
+	elif Inventory.slots[index].id == "spike_trap":
+		Invasion.request_place_trap.rpc_id(1, index)
 
 
 func _on_gear_slot_input(event: InputEvent, gear_slot: String) -> void:
@@ -475,6 +497,12 @@ func _build_layout() -> void:
 	_health_text = _label("")
 	_health_bar.add_child(_health_text)
 	_health_text.position = Vector2(84, -3)
+
+	_invasion_line = _label("")
+	_invasion_line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_anchor(_invasion_line, Vector2(0.5, 0.0), Rect2(-200, 26, 400, 12))
+	_invasion_line.visible = false
+	_root.add_child(_invasion_line)
 
 	_spirit_banner = _label("")
 	_spirit_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

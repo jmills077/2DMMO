@@ -15,6 +15,7 @@ const BINDINGS := {
 	"trade": [KEY_T],
 	"save_game": [KEY_F5],
 	"refill_resources": [KEY_F9],
+	"start_invasion": [KEY_F10],
 	"close_menu": [KEY_ESCAPE],
 }
 
