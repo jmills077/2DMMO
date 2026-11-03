@@ -37,6 +37,14 @@ func as_guild(guild_id: String) -> void:
 		Town.state.players["Smoke"] = {"guild": guild_id, "contribution": 0}
 
 
+## Presses and releases E for one physics frame.
+func tap_interact() -> void:
+	Input.action_press("interact")
+	await get_tree().physics_frame
+	Input.action_release("interact")
+	await get_tree().physics_frame
+
+
 func use_spot(target: Node2D) -> void:
 	player.global_position = target.global_position + Vector2(0, 12)
 
@@ -251,6 +259,30 @@ func _ready() -> void:
 	for i in 10:
 		await get_tree().physics_frame
 	check(player._target == iron, "player targets the nearest rock")
+
+	print("Gathering timing game")
+	Server.check_gather_time = true
+	Town.state.players["Smoke"] = {"guild": "blacksmith", "contribution": 0}
+	var ore_before := Inventory.count_of("iron_ore")
+	await tap_interact()
+	check(player._gather_state == "filling", "tapping E starts the bar")
+	await tap_interact()
+	check(player._gather_state == "", "tapping outside the zone resets the bar")
+	check(Inventory.count_of("iron_ore") == ore_before, "a miss gathers nothing")
+	for i in 20:
+		await get_tree().physics_frame
+	await tap_interact()
+	var zone_middle: float = player._zone_start + player._zone_width / 2.0
+	while player._gather_state == "filling" and player._gather_elapsed / iron.gather_duration() < zone_middle:
+		await get_tree().physics_frame
+	await tap_interact()
+	await get_tree().process_frame
+	check(Inventory.count_of("iron_ore") > ore_before, "tapping inside the zone gathers ore")
+	iron.apply_save_state({"depleted": false})
+	await tap_interact()
+	while player._gather_state == "filling":
+		await get_tree().physics_frame
+	check(player._gather_state == "", "letting the bar run out resets it")
 
 	Server.delete_save()
 	print("")

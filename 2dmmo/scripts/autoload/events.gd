@@ -5,6 +5,8 @@ extends Node
 signal toast(text: String)
 ## A town object was used. The town panels open.
 signal town_object_opened(kind: String, guild_id: String, path: String)
+## The server started this player's gathering bar, with the zone to hit (0..1).
+signal gather_zone(path: String, zone_start: float, zone_width: float)
 ## The player this window controls has appeared in the world.
 signal local_player_ready(player: Node)
 ## The connection line at the top of the screen changed.

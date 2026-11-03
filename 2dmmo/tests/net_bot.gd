@@ -9,6 +9,7 @@ var role := ""
 var failures := 0
 var toasts: Array[String] = []
 var player: Node2D
+var _zone: Array = []
 
 
 func check(condition: bool, what: String) -> void:
@@ -21,6 +22,7 @@ func _ready() -> void:
 	role = str(Net.options.bot)
 	Events.toast.connect(func(text: String) -> void: toasts.append(text))
 	Events.local_player_ready.connect(_on_ready_to_play)
+	Events.gather_zone.connect(func(_p: String, start: float, width: float) -> void: _zone = [start, width])
 	get_tree().create_timer(30.0).timeout.connect(func() -> void:
 		print("BOT %s FAIL timed out" % role)
 		get_tree().quit(1))
@@ -43,12 +45,22 @@ func _world() -> Node:
 	return get_tree().current_scene
 
 
-func _gather(target: Node2D, hold_seconds: float) -> void:
+## Plays the gathering timing game. tap_at is where along the bar to tap
+## (0..1); leave it negative to tap in the middle of the zone.
+func _gather(target: Node2D, tap_at: float = -1.0) -> void:
 	player.global_position = target.global_position + Vector2(0, 10)
 	await get_tree().create_timer(0.3).timeout
 	var path := Server.path_of(target)
+	_zone = []
 	Server.request_gather_start.rpc_id(1, path)
-	await get_tree().create_timer(hold_seconds).timeout
+	var waited := 0.0
+	while _zone.is_empty() and waited < 1.0:
+		await get_tree().process_frame
+		waited += get_process_delta_time()
+	if _zone.is_empty():
+		return
+	var ratio: float = tap_at if tap_at >= 0.0 else _zone[0] + _zone[1] / 2.0
+	await get_tree().create_timer(ratio * target.gather_duration()).timeout
 	Server.request_gather_finish.rpc_id(1, path)
 	await get_tree().create_timer(0.5).timeout
 
@@ -56,9 +68,9 @@ func _gather(target: Node2D, hold_seconds: float) -> void:
 func _miner() -> void:
 	check(Net.player_name == "Miner", "joined with its name")
 	var rock: Node2D = _world().get_node("Entities/IronRock1")
-	await _gather(rock, 0.2)
-	check(Inventory.count_of("iron_ore") == 0, "gathering too fast is refused")
-	await _gather(rock, 1.6)
+	await _gather(rock, 0.05)
+	check(Inventory.count_of("iron_ore") == 0, "tapping outside the zone gathers nothing")
+	await _gather(rock)
 	check(Inventory.count_of("iron_ore") > 0, "mined iron ore through the server")
 	check(rock.get_interaction() == "", "rock shows as depleted for the miner")
 	Town.request_join_guild.rpc_id(1, "blacksmith")
@@ -92,11 +104,11 @@ func _watcher() -> void:
 	check(Town.guild_of("Miner") == "blacksmith" and Town.is_online("Miner"), "sees the miner's guild")
 	check(Town.stock_of("iron_ore") == 1, "sees the town stockpile the miner filled")
 	check(Town.is_leader("Miner"), "miner leads the Blacksmiths")
-	await _gather(rock, 1.6)
+	await _gather(rock)
 	check(Inventory.count_of("iron_ore") == 0, "cannot mine a depleted rock")
 	check(toasts.has("Someone got there first"), "told someone got there first")
 	var coal: Node2D = _world().get_node("Entities/CoalRock1")
-	await _gather(coal, 1.6)
+	await _gather(coal)
 	check(Inventory.count_of("coal") > 0, "mined coal through the server")
 
 

@@ -14,6 +14,7 @@ const MISSING_COLOR := Color(1.0, 0.45, 0.4)
 var _root: Control
 var _prompt: Label
 var _gather_bar: ProgressBar
+var _gather_zone: ColorRect
 var _toasts: VBoxContainer
 var _inventory_panel: PanelContainer
 var _inventory_grid: GridContainer
@@ -73,9 +74,12 @@ func _on_target_changed(prompt: String) -> void:
 	_prompt.visible = prompt != "" and not Events.ui_blocking
 
 
-func _on_gather_progress(ratio: float) -> void:
+func _on_gather_progress(ratio: float, zone_start: float, zone_width: float) -> void:
 	_gather_bar.value = ratio
 	_gather_bar.visible = ratio > 0.0
+	var width := _gather_bar.size.x
+	_gather_zone.position = Vector2(round(zone_start * width), 0)
+	_gather_zone.size = Vector2(maxf(round(zone_width * width), 2.0), _gather_bar.size.y)
 
 
 func _show_toast(text: String) -> void:
@@ -324,8 +328,8 @@ func _build_layout() -> void:
 	_root.add_child(_prompt)
 
 	_gather_bar = ProgressBar.new()
-	_gather_bar.custom_minimum_size = Vector2(60, 5)
-	_anchor(_gather_bar, Vector2(0.5, 1.0), Rect2(-30, -36, 60, 5))
+	_gather_bar.custom_minimum_size = Vector2(80, 7)
+	_anchor(_gather_bar, Vector2(0.5, 1.0), Rect2(-40, -38, 80, 7))
 	_gather_bar.max_value = 1.0
 	_gather_bar.show_percentage = false
 	_gather_bar.add_theme_stylebox_override("background", _box_style(Color(0, 0, 0, 0.6), Color.BLACK))
@@ -334,6 +338,11 @@ func _build_layout() -> void:
 	_gather_bar.add_theme_stylebox_override("fill", fill)
 	_gather_bar.visible = false
 	_root.add_child(_gather_bar)
+	# The zone to hit: tap E while the fill is inside it.
+	_gather_zone = ColorRect.new()
+	_gather_zone.color = Color(0.4, 1.0, 0.5, 0.55)
+	_gather_zone.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_gather_bar.add_child(_gather_zone)
 
 	_toasts = VBoxContainer.new()
 	_anchor(_toasts, Vector2(1.0, 0.0), Rect2(-164, 4, 160, 80))

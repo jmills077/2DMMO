@@ -11,7 +11,7 @@ signal state_changed
 
 @export var display_name := "Iron Rock"
 @export var item_id := "iron_ore"
-## Shown in the prompt: "Hold E: <verb> <display_name>".
+## Shown in the prompt: "Press E: <verb> <display_name>".
 @export var verb := "mine"
 @export var yield_min := 1
 @export var yield_max := 2
@@ -47,7 +47,7 @@ func get_interaction() -> String:
 
 
 func get_prompt() -> String:
-	return "" if depleted else "Hold E: %s %s" % [verb, display_name]
+	return "" if depleted else "Press E: %s %s" % [verb, display_name]
 
 
 func gather_duration() -> float:

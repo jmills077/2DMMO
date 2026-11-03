@@ -18,8 +18,14 @@ const SPAWN_POINT := Vector2(23 * 16 + 8, 17 * 16 + 8)
 ## How far (in pixels) a player can be from what they use. A bit more than the
 ## player's reach, to allow for network delay.
 const MAX_USE_DISTANCE := 40.0
-## Gathering must take at least this share of its full time on the server.
-const GATHER_TIME_TOLERANCE := 0.8
+## Gathering is a timing game: the bar fills over the gather time and the
+## player taps E again inside a highlighted zone. The server picks the zone
+## and checks the tap landed in it.
+const GATHER_ZONE_WIDTH := 0.2
+const GATHER_ZONE_EARLIEST := 0.3
+const GATHER_ZONE_LATEST := 0.75
+## Extra share of the bar allowed either side of the zone, for network delay.
+const GATHER_TIMING_SLACK := 0.12
 
 ## The loaded world scene (main.tscn). It registers itself when it loads.
 var world: Node
@@ -136,8 +142,18 @@ func hello(wanted_name: String) -> void:
 
 @rpc("any_peer", "call_local", "reliable")
 func request_gather_start(path: String) -> void:
-	if multiplayer.is_server():
-		_gathering[sender()] = {"path": path, "since": Time.get_ticks_msec()}
+	if not multiplayer.is_server():
+		return
+	var peer := sender()
+	var target := reachable(peer, path)
+	if target == null or not target.has_method("harvest"):
+		return
+	if target.get_interaction() != "gather":
+		toast(peer, "Someone got there first")
+		return
+	var zone_start := randf_range(GATHER_ZONE_EARLIEST, GATHER_ZONE_LATEST)
+	_gathering[peer] = {"path": path, "since": Time.get_ticks_msec(), "zone": zone_start}
+	_call_on(peer, "_receive_gather_zone", [path, zone_start, GATHER_ZONE_WIDTH])
 
 
 @rpc("any_peer", "call_local", "reliable")
@@ -154,8 +170,12 @@ func request_gather_finish(path: String) -> void:
 		toast(peer, "Someone got there first")
 		return
 	if check_gather_time:
-		var needed: float = target.gather_duration() * 1000.0 * GATHER_TIME_TOLERANCE
-		if started.get("path", "") != path or Time.get_ticks_msec() - int(started.since) < needed:
+		if started.get("path", "") != path:
+			return
+		var ratio: float = (Time.get_ticks_msec() - int(started.since)) / (target.gather_duration() * 1000.0)
+		var zone := float(started.zone)
+		if ratio < zone - GATHER_TIMING_SLACK or ratio > zone + GATHER_ZONE_WIDTH + GATHER_TIMING_SLACK:
+			toast(peer, "Missed!")
 			return
 	_give(peer, target.harvest())
 
@@ -211,6 +231,11 @@ func request_save() -> void:
 @rpc("authority", "call_local", "reliable")
 func _receive_bag(slots: Array) -> void:
 	Inventory.set_slots(slots)
+
+
+@rpc("authority", "call_local", "reliable")
+func _receive_gather_zone(path: String, zone_start: float, zone_width: float) -> void:
+	Events.gather_zone.emit(path, zone_start, zone_width)
 
 
 @rpc("authority", "call_local", "reliable")

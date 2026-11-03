@@ -22,7 +22,7 @@ To play with someone on your home network, start the game with `-- --host` on yo
 | Key | Action |
 | --- | --- |
 | WASD or arrows | Move |
-| E or Space | Interact: hold to gather, press to plant a sapling or use town objects |
+| E | Interact. To gather: tap E to start the bar, then tap E again while the bar is in the green zone. Miss and the bar resets. Also plants saplings and opens town objects. |
 | I or Tab | Open or close your bag |
 | C | Open or close your crafting menu (craft anywhere) |
 | F5 | Save the world (the host also saves every minute, when anyone leaves, and when it closes) |
