@@ -1,0 +1,20 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/world/mob.gd" id="1_bsing"]
+[ext_resource type="Texture2D" path="res://art/deer.png" id="2_d4cuo"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_71rcx"]
+size = Vector2(10, 5)
+
+[node name="Mob" type="CharacterBody2D" unique_id=105773635]
+collision_layer = 2
+motion_mode = 1
+script = ExtResource("1_bsing")
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1563387017]
+position = Vector2(0, -4)
+texture = ExtResource("2_d4cuo")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1752752392]
+position = Vector2(0, 2)
+shape = SubResource("RectangleShape2D_71rcx")

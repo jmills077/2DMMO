@@ -56,6 +56,9 @@ func request_invite(target_peer: int) -> void:
 	var peer := Server.sender()
 	if peer == target_peer or Server.name_of(target_peer) == "":
 		return
+	if Combat.is_dead(peer) or Combat.is_dead(target_peer):
+		Server.toast(peer, "Spirits can't trade")
+		return
 	if _trades.has(peer) or _trades.has(target_peer):
 		Server.toast(peer, "%s is busy trading" % Server.name_of(target_peer) if _trades.has(target_peer) else "Finish your current trade first")
 		return
@@ -142,6 +145,13 @@ func player_left(peer_id: int) -> void:
 	_invites.erase(peer_id)
 	if _trades.has(peer_id):
 		_cancel(_trades[peer_id], "Trade cancelled: %s left" % Server.name_of(peer_id))
+
+
+## Server: cancels this player's trade, if any (for example when they die).
+func cancel_for(peer_id: int, message: String) -> void:
+	_invites.erase(peer_id)
+	if _trades.has(peer_id):
+		_cancel(_trades[peer_id], message)
 
 
 # --- Messages from the server (each runs on a player's machine) ---

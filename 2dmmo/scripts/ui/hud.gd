@@ -32,6 +32,12 @@ var _connect_panel: PanelContainer
 var _name_field: LineEdit
 var _address_field: LineEdit
 var _town_ui: Control
+var _health_bar: ColorRect
+var _health_fill: ColorRect
+var _health_text: Label
+var _spirit_banner: Label
+var _gear_row: HBoxContainer
+var _arrow_button: Button
 var _trade_ui: Control
 
 
@@ -40,6 +46,8 @@ func _ready() -> void:
 	Inventory.changed.connect(_refresh_inventory)
 	Inventory.changed.connect(_refresh_crafting)
 	Town.changed.connect(_refresh_crafting)
+	Combat.health_changed.connect(_on_health_changed)
+	Combat.equipment_changed.connect(_refresh_inventory)
 	Events.toast.connect(_show_toast)
 	Events.local_player_ready.connect(_on_local_player_ready)
 	Events.status_changed.connect(func(text: String) -> void: _status.text = text)
@@ -109,6 +117,7 @@ func _on_gather_failed() -> void:
 
 
 func _process(delta: float) -> void:
+	_update_spirit_banner()
 	if _fail_left <= 0.0:
 		return
 	_fail_left -= delta
@@ -135,6 +144,8 @@ func _end_fail() -> void:
 
 func _show_toast(text: String) -> void:
 	var label := _label(text)
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.custom_minimum_size.x = 160
 	_toasts.add_child(label)
 	var tween := create_tween()
 	tween.tween_interval(2.0)
@@ -142,6 +153,37 @@ func _show_toast(text: String) -> void:
 	tween.tween_callback(label.queue_free)
 	if _toasts.get_child_count() > 5:
 		_toasts.get_child(0).queue_free()
+
+
+# --- Health and death ---
+
+func _on_health_changed(peer: int) -> void:
+	if not multiplayer.has_multiplayer_peer() or peer != multiplayer.get_unique_id():
+		return
+	var entry: Array = Combat.health.get(peer, [0, 0])
+	if int(entry[1]) <= 0:
+		return
+	_health_fill.size.x = round(78.0 * clampf(float(entry[0]) / float(entry[1]), 0.0, 1.0))
+	_health_text.text = "%d / %d" % [int(entry[0]), int(entry[1])]
+	_health_bar.visible = true
+
+
+## While you're a spirit: which way your body is.
+func _update_spirit_banner() -> void:
+	var me := get_tree().get_first_node_in_group("local_player") as Node2D
+	if me == null or not Combat.dead.has(multiplayer.get_unique_id()):
+		_spirit_banner.visible = false
+		return
+	var to_body: Vector2 = Combat.dead[multiplayer.get_unique_id()] - me.global_position
+	var tiles := int(round(to_body.length() / 16.0))
+	var where := "right here. Press E" if tiles <= 1 else "%d tiles %s" % [tiles, _compass(to_body)]
+	_spirit_banner.text = "You are a spirit. Your body is %s." % where
+	_spirit_banner.visible = true
+
+
+func _compass(v: Vector2) -> String:
+	var names := ["east", "south-east", "south", "south-west", "west", "north-west", "north", "north-east"]
+	return names[wrapi(int(round(v.angle() / (PI / 4.0))), 0, 8)]
 
 
 # --- Inventory ---
@@ -158,7 +200,47 @@ func _refresh_inventory() -> void:
 		child.queue_free()
 	for i in Inventory.MAX_SLOTS:
 		var slot: Dictionary = Inventory.slots[i] if i < Inventory.slots.size() else {}
-		_inventory_grid.add_child(_make_slot(slot))
+		var box := _make_slot(slot)
+		if not slot.is_empty():
+			box.gui_input.connect(_on_bag_slot_input.bind(i))
+		_inventory_grid.add_child(box)
+	# What you're wearing. Click to take it off.
+	for child in _gear_row.get_children():
+		child.queue_free()
+	for gear_slot: String in Combat.SLOTS:
+		var item: Dictionary = Combat.equipment.get(gear_slot, {})
+		var column := VBoxContainer.new()
+		column.add_theme_constant_override("separation", 0)
+		var box := _make_slot(item)
+		if item.is_empty():
+			box.mouse_entered.connect(func() -> void: _item_details.text = "Nothing worn here")
+		else:
+			box.gui_input.connect(_on_gear_slot_input.bind(gear_slot))
+		column.add_child(box)
+		var caption := _label({"weapon": "Weapon", "offhand": "Off-hand", "armor": "Armor"}[gear_slot])
+		caption.modulate.a = 0.7
+		column.add_child(caption)
+		_gear_row.add_child(column)
+	var arrows := Crafting.find_recipe("make_arrows")
+	_arrow_button.disabled = arrows.is_empty() or not Crafting.can_craft(Inventory.bag, arrows)
+
+
+## Click gear to wear it; click a salve to use it.
+func _on_bag_slot_input(event: InputEvent, index: int) -> void:
+	if not (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT):
+		return
+	if index >= Inventory.slots.size():
+		return
+	var item := GameData.get_item(Inventory.slots[index].id)
+	if item.has("slot"):
+		Combat.request_equip.rpc_id(1, index)
+	elif item.has("heal"):
+		Combat.request_use_item.rpc_id(1, index)
+
+
+func _on_gear_slot_input(event: InputEvent, gear_slot: String) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		Combat.request_unequip.rpc_id(1, gear_slot)
 
 
 func _make_slot(slot: Dictionary) -> Control:
@@ -201,6 +283,8 @@ func _describe(slot: Dictionary) -> String:
 		lines.append(line)
 	if item.has("description"):
 		lines.append(str(item.description))
+	if item.has("slot"):
+		lines.append("Click to wear it.")
 	return "\n".join(lines)
 
 
@@ -364,7 +448,7 @@ func _build_layout() -> void:
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_root)
 
-	var help := _label("WASD move   E interact   Space roll   I bag   C craft   T trade   Esc close")
+	var help := _label("WASD move   E interact   R attack   Space roll   I bag   C craft   T trade   Esc close")
 	help.position = Vector2(4, 2)
 	help.modulate.a = 0.75
 	_root.add_child(help)
@@ -373,6 +457,31 @@ func _build_layout() -> void:
 	_status.position = Vector2(4, 12)
 	_status.add_theme_color_override("font_color", Color(1.0, 0.9, 0.5))
 	_root.add_child(_status)
+
+	# Your health, top left.
+	_health_bar = ColorRect.new()
+	_health_bar.color = Color(0, 0, 0, 0.7)
+	_health_bar.position = Vector2(4, 24)
+	_health_bar.size = Vector2(80, 7)
+	_health_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_health_bar.visible = false
+	_health_fill = ColorRect.new()
+	_health_fill.color = Color(0.85, 0.2, 0.2)
+	_health_fill.position = Vector2(1, 1)
+	_health_fill.size = Vector2(78, 5)
+	_health_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_health_bar.add_child(_health_fill)
+	_root.add_child(_health_bar)
+	_health_text = _label("")
+	_health_bar.add_child(_health_text)
+	_health_text.position = Vector2(84, -3)
+
+	_spirit_banner = _label("")
+	_spirit_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_spirit_banner.add_theme_color_override("font_color", Color(0.75, 0.88, 1.0))
+	_anchor(_spirit_banner, Vector2(0.5, 0.0), Rect2(-200, 40, 400, 12))
+	_spirit_banner.visible = false
+	_root.add_child(_spirit_banner)
 
 	_prompt = _label("")
 	_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -404,7 +513,10 @@ func _build_layout() -> void:
 
 	var inv: Array = _panel("Bag")
 	_inventory_panel = inv[0]
-	_inventory_panel.position = Vector2(340, 40)
+	_inventory_panel.position = Vector2(340, 24)
+	_gear_row = HBoxContainer.new()
+	_gear_row.add_theme_constant_override("separation", 8)
+	inv[1].add_child(_gear_row)
 	_inventory_grid = GridContainer.new()
 	_inventory_grid.columns = 6
 	_inventory_grid.add_theme_constant_override("h_separation", 2)
@@ -415,6 +527,12 @@ func _build_layout() -> void:
 	_item_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_item_details.custom_minimum_size.x = 6 * (SLOT_SIZE + 2)
 	inv[1].add_child(_item_details)
+	_arrow_button = Button.new()
+	_arrow_button.text = "Make 5 arrows (1 log)"
+	_arrow_button.add_theme_font_size_override("font_size", FONT_SIZE)
+	_arrow_button.focus_mode = Control.FOCUS_NONE
+	_arrow_button.pressed.connect(func() -> void: Server.request_craft.rpc_id(1, "make_arrows"))
+	inv[1].add_child(_arrow_button)
 	_root.add_child(_inventory_panel)
 
 	var craft: Array = _panel("Crafting")

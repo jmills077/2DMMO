@@ -87,6 +87,7 @@ func add_player(peer_id: int, wanted_name: String) -> String:
 		"y": float(record.get("y", SPAWN_POINT.y)),
 	})
 	send_bag(peer_id)
+	Combat.player_joined(peer_id, record)
 	Town.player_joined(player_name)
 	toast_all("%s joined" % player_name)
 	return player_name
@@ -98,6 +99,7 @@ func remove_player(peer_id: int) -> void:
 	var player_name: String = _names[peer_id]
 	Trade.player_left(peer_id)
 	_store_player(peer_id)
+	Combat.player_left(peer_id)
 	var node := player_node(peer_id)
 	if node:
 		node.queue_free()
@@ -204,7 +206,13 @@ func request_craft(recipe_id: String) -> void:
 	if recipe.is_empty() or bag_of(peer) == null:
 		return
 	var guild := str(recipe.get("guild", ""))
-	if not Town.knows_recipe(name_of(peer), recipe_id):
+	if Combat.is_dead(peer):
+		toast(peer, "Spirits can't craft")
+		return
+	# Recipes made in the bag (arrows) are for everyone.
+	if bool(recipe.get("in_bag", false)):
+		guild = ""
+	elif not Town.knows_recipe(name_of(peer), recipe_id):
 		toast(peer, "You don't know that recipe")
 		return
 	if guild != "" and Town.guild_of(name_of(peer)) != guild:
@@ -319,11 +327,13 @@ func _store_player(peer_id: int) -> void:
 	var node := player_node(peer_id)
 	if node == null or not _names.has(peer_id):
 		return
-	_saved_players[_names[peer_id]] = {
+	var record := {
 		"x": node.global_position.x,
 		"y": node.global_position.y,
 		"inventory": _bags[peer_id].to_save_data(),
 	}
+	record.merge(Combat.player_record(peer_id))
+	_saved_players[_names[peer_id]] = record
 
 
 # --- Helpers ---
@@ -343,6 +353,9 @@ func reachable(peer_id: int, path: String) -> Node2D:
 	var target := world.get_node_or_null(path) as Node2D
 	var player := player_node(peer_id)
 	if entities == null or target == null or player == null or not entities.is_ancestor_of(target):
+		return null
+	if Combat.is_dead(peer_id):
+		toast(peer_id, "Spirits can't do that. Walk back to your body.")
 		return null
 	if player.global_position.distance_to(target.global_position) > MAX_USE_DISTANCE:
 		toast(peer_id, "Too far away")
