@@ -1,0 +1,22 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/world/ore_rock.gd" id="1_086pr"]
+[ext_resource type="Texture2D" path="res://art/iron_rock.png" id="2_ovlik"]
+[ext_resource type="Texture2D" path="res://art/rock_depleted.png" id="3_11uqb"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_elixv"]
+size = Vector2(12, 7)
+
+[node name="OreRock" type="StaticBody2D" unique_id=2029145907]
+collision_layer = 3
+collision_mask = 0
+script = ExtResource("1_086pr")
+full_texture = ExtResource("2_ovlik")
+depleted_texture = ExtResource("3_11uqb")
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=17731046]
+texture = ExtResource("2_ovlik")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=496068547]
+position = Vector2(0, 3)
+shape = SubResource("RectangleShape2D_elixv")

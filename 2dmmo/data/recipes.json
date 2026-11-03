@@ -1,0 +1,7 @@
+[
+	{ "id": "smelt_iron", "station": "furnace", "inputs": { "iron_ore": 2, "coal": 1 }, "output": { "item": "iron_ingot", "count": 1 } },
+	{ "id": "saw_planks", "station": "workbench", "inputs": { "log": 1 }, "output": { "item": "plank", "count": 2 } },
+	{ "id": "carve_handle", "station": "workbench", "inputs": { "plank": 1 }, "output": { "item": "handle", "count": 2 } },
+	{ "id": "iron_sword", "station": "workbench", "inputs": { "iron_ingot": 2, "handle": 1 }, "output": { "item": "iron_sword", "count": 1 }, "high_quality_chance": 0.2 },
+	{ "id": "wooden_shield", "station": "workbench", "inputs": { "plank": 3, "iron_ingot": 1 }, "output": { "item": "wooden_shield", "count": 1 }, "high_quality_chance": 0.2 }
+]

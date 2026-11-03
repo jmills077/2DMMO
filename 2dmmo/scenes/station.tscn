@@ -1,0 +1,20 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/world/station.gd" id="1_0r0hh"]
+[ext_resource type="Texture2D" path="res://art/workbench.png" id="2_rvx7u"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_csis4"]
+size = Vector2(14, 9)
+
+[node name="Station" type="StaticBody2D" unique_id=831542623]
+collision_layer = 3
+collision_mask = 0
+script = ExtResource("1_0r0hh")
+texture = ExtResource("2_rvx7u")
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1152842842]
+texture = ExtResource("2_rvx7u")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1211471641]
+position = Vector2(0, 2)
+shape = SubResource("RectangleShape2D_csis4")
