@@ -15,6 +15,11 @@ var _root: Control
 var _prompt: Label
 var _gather_bar: ProgressBar
 var _gather_zone: ColorRect
+var _gather_fill: StyleBoxFlat
+var _fail_left := 0.0
+const FAIL_SECONDS := 0.35
+const GATHER_FILL_COLOR := Color(0.95, 0.8, 0.35)
+const GATHER_FAIL_COLOR := Color(0.95, 0.25, 0.2)
 var _toasts: VBoxContainer
 var _inventory_panel: PanelContainer
 var _inventory_grid: GridContainer
@@ -45,6 +50,7 @@ func _ready() -> void:
 func _on_local_player_ready(player: Node) -> void:
 	player.target_changed.connect(_on_target_changed)
 	player.gather_progress.connect(_on_gather_progress)
+	player.gather_failed.connect(_on_gather_failed)
 	_connect_panel.visible = false
 	_update_blocking()
 
@@ -75,11 +81,47 @@ func _on_target_changed(prompt: String) -> void:
 
 
 func _on_gather_progress(ratio: float, zone_start: float, zone_width: float) -> void:
+	if _fail_left > 0.0:
+		if ratio <= 0.0:
+			return
+		_end_fail()
 	_gather_bar.value = ratio
 	_gather_bar.visible = ratio > 0.0
 	var width := _gather_bar.size.x
 	_gather_zone.position = Vector2(round(zone_start * width), 0)
 	_gather_zone.size = Vector2(maxf(round(zone_width * width), 2.0), _gather_bar.size.y)
+
+
+## A missed tap: the bar stays a moment, flashes red and shakes.
+func _on_gather_failed() -> void:
+	_fail_left = FAIL_SECONDS
+	_gather_bar.visible = true
+	_gather_zone.visible = false
+
+
+func _process(delta: float) -> void:
+	if _fail_left <= 0.0:
+		return
+	_fail_left -= delta
+	if _fail_left <= 0.0:
+		_end_fail()
+		return
+	var t := 1.0 - _fail_left / FAIL_SECONDS
+	_gather_fill.bg_color = GATHER_FAIL_COLOR.lerp(GATHER_FILL_COLOR, t * t)
+	_gather_bar.modulate = Color(1.0, 0.55, 0.55).lerp(Color.WHITE, t)
+	var shake := roundf(sin(t * TAU * 4.0) * 3.0 * (1.0 - t))
+	_gather_bar.offset_left = -40 + shake
+	_gather_bar.offset_right = 40 + shake
+
+
+func _end_fail() -> void:
+	_fail_left = 0.0
+	_gather_fill.bg_color = GATHER_FILL_COLOR
+	_gather_bar.modulate = Color.WHITE
+	_gather_bar.offset_left = -40
+	_gather_bar.offset_right = 40
+	_gather_bar.visible = false
+	_gather_zone.visible = true
 
 
 func _show_toast(text: String) -> void:
@@ -333,9 +375,9 @@ func _build_layout() -> void:
 	_gather_bar.max_value = 1.0
 	_gather_bar.show_percentage = false
 	_gather_bar.add_theme_stylebox_override("background", _box_style(Color(0, 0, 0, 0.6), Color.BLACK))
-	var fill := StyleBoxFlat.new()
-	fill.bg_color = Color(0.95, 0.8, 0.35)
-	_gather_bar.add_theme_stylebox_override("fill", fill)
+	_gather_fill = StyleBoxFlat.new()
+	_gather_fill.bg_color = GATHER_FILL_COLOR
+	_gather_bar.add_theme_stylebox_override("fill", _gather_fill)
 	_gather_bar.visible = false
 	_root.add_child(_gather_bar)
 	# The zone to hit: tap E while the fill is inside it.

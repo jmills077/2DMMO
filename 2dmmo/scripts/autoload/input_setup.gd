@@ -8,6 +8,7 @@ const BINDINGS := {
 	"move_left": [KEY_A, KEY_LEFT],
 	"move_right": [KEY_D, KEY_RIGHT],
 	"interact": [KEY_E],
+	"roll": [KEY_SPACE],
 	"inventory": [KEY_I, KEY_TAB],
 	"crafting": [KEY_C],
 	"save_game": [KEY_F5],

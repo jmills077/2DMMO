@@ -6,8 +6,15 @@ extends CharacterBody2D
 
 signal target_changed(prompt: String)
 signal gather_progress(ratio: float, zone_start: float, zone_width: float)
+## The gathering timing game was missed (the HUD shakes the bar red).
+signal gather_failed
 
-const SPEED := 80.0
+## Walking speed in pixels per second (raised from 80 for testing).
+const SPEED := 110.0
+## Roll (Space): a short burst in the direction you're moving.
+const ROLL_SPEED_MULTIPLIER := 1.6
+const ROLL_SECONDS := 0.22
+const ROLL_COOLDOWN := 0.6
 ## How far away (in pixels) the player can reach rocks, trees and stations.
 const REACH := 16.0
 ## Physics layer 2 holds everything the player can interact with.
@@ -24,6 +31,8 @@ const SNAP_DISTANCE := 48.0
 ## Where this character is, as sent over the network.
 @export var sync_position := Vector2.ZERO
 @export var facing_left := false
+## How far through a roll the sprite has spun (radians), sent to other windows.
+@export var roll_angle := 0.0
 
 var _target: Node2D = null
 var _gather_elapsed := 0.0
@@ -32,6 +41,10 @@ var _gather_path := ""
 var _zone_start := 0.0
 var _zone_width := 0.0
 var _cooldown := 0.0
+var _roll_left := 0.0
+var _roll_cooldown := 0.0
+var _roll_direction := Vector2.RIGHT
+var _last_direction := Vector2.RIGHT
 var _reach_query := PhysicsShapeQueryParameters2D.new()
 var _name_label: Label
 
@@ -93,11 +106,29 @@ func _physics_process(delta: float) -> void:
 	var direction := Vector2.ZERO
 	if not Events.ui_blocking:
 		direction = Input.get_vector("move_left", "move_right", "move_up", "move_down")
-	velocity = direction * SPEED
+	if direction != Vector2.ZERO:
+		_last_direction = direction.normalized()
+	_roll_cooldown = maxf(_roll_cooldown - delta, 0.0)
+	if Input.is_action_just_pressed("roll") and not Events.ui_blocking and _roll_left <= 0.0 and _roll_cooldown <= 0.0:
+		_roll_left = ROLL_SECONDS
+		_roll_cooldown = ROLL_COOLDOWN
+		# Keep going the way you're moving; standing still rolls the way you face.
+		_roll_direction = _last_direction if direction != Vector2.ZERO else Vector2(-1.0 if facing_left else 1.0, 0.0)
+		_reset_gather()
+	if _roll_left > 0.0:
+		_roll_left -= delta
+		velocity = _roll_direction * SPEED * ROLL_SPEED_MULTIPLIER
+		var spin := 1.0 - maxf(_roll_left, 0.0) / ROLL_SECONDS
+		roll_angle = TAU * spin * (-1.0 if _roll_direction.x < 0.0 else 1.0)
+		if _roll_left <= 0.0:
+			roll_angle = 0.0
+	else:
+		velocity = direction * SPEED
 	move_and_slide()
 	if direction.x != 0.0:
 		facing_left = direction.x < 0.0
 	sprite.flip_h = facing_left
+	sprite.rotation = roll_angle
 	sync_position = position
 
 	_cooldown = maxf(_cooldown - delta, 0.0)
@@ -111,6 +142,7 @@ func _follow_network(delta: float) -> void:
 	else:
 		position = position.lerp(sync_position, minf(1.0, delta * 15.0))
 	sprite.flip_h = facing_left
+	sprite.rotation = roll_angle
 
 
 func _update_target() -> void:
@@ -168,11 +200,11 @@ func _handle_gathering(delta: float) -> void:
 		if ratio >= _zone_start and ratio <= _zone_start + _zone_width:
 			Server.request_gather_finish.rpc_id(1, _gather_path)
 		else:
-			Events.toast.emit("Missed! Press E to try again")
+			gather_failed.emit()
 		_reset_gather()
 		_cooldown = 0.3
 	elif ratio >= 1.0:
-		Events.toast.emit("Too slow! Press E to try again")
+		gather_failed.emit()
 		_reset_gather()
 		_cooldown = 0.3
 

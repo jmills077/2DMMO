@@ -116,7 +116,7 @@ func _build_player() -> Node:
 	var sync := MultiplayerSynchronizer.new()
 	sync.name = "Sync"
 	var config := SceneReplicationConfig.new()
-	for property: String in [".:sync_position", ".:facing_left"]:
+	for property: String in [".:sync_position", ".:facing_left", ".:roll_angle"]:
 		config.add_property(NodePath(property))
 		config.property_set_spawn(NodePath(property), true)
 		config.property_set_replication_mode(NodePath(property),

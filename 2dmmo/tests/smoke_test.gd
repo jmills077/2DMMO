@@ -284,6 +284,28 @@ func _ready() -> void:
 		await get_tree().physics_frame
 	check(player._gather_state == "", "letting the bar run out resets it")
 
+	print("Movement")
+	var hud: Node = main.get_node("HUD")
+	var fails := [0]
+	player.gather_failed.connect(func() -> void: fails[0] += 1)
+	iron.apply_save_state({"depleted": false})
+	for i in 30:
+		await get_tree().physics_frame
+	await tap_interact()
+	await tap_interact()
+	check(fails[0] == 1 and hud._fail_left > 0.0, "a miss flashes the bar red")
+	player.global_position = Vector2(23 * 16 + 8, 15 * 16 + 8)
+	await get_tree().physics_frame
+	var start := player.global_position
+	Input.action_press("roll")
+	await get_tree().physics_frame
+	Input.action_release("roll")
+	for i in 20:
+		await get_tree().physics_frame
+	var rolled := player.global_position.distance_to(start)
+	check(rolled > 20.0 and rolled < 60.0, "space rolls a short way (%d px)" % rolled)
+	check(player.roll_angle == 0.0, "the roll spin finishes")
+
 	Server.delete_save()
 	print("")
 	if failures.is_empty():
