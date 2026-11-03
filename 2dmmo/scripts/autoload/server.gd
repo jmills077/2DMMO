@@ -182,6 +182,10 @@ func request_craft(recipe_id: String) -> void:
 	var recipe := Crafting.find_recipe(recipe_id)
 	if recipe.is_empty() or bag_of(peer) == null:
 		return
+	var guild := str(recipe.get("guild", ""))
+	if guild != "" and Town.guild_of(name_of(peer)) != guild:
+		toast(peer, "Only %s can craft that" % GameData.get_guild(guild).get("name", guild))
+		return
 	if not _near_station(peer, str(recipe.get("station", ""))):
 		toast(peer, "Too far from the station")
 		return

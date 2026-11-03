@@ -29,6 +29,14 @@ func use(target: Node2D) -> void:
 	Server.request_use(Server.path_of(target))
 
 
+## Tests switch guilds freely; real players choose once.
+func as_guild(guild_id: String) -> void:
+	if guild_id == "":
+		Town.state.players.erase("Smoke")
+	else:
+		Town.state.players["Smoke"] = {"guild": guild_id, "contribution": 0}
+
+
 func use_spot(target: Node2D) -> void:
 	player.global_position = target.global_position + Vector2(0, 12)
 
@@ -52,7 +60,7 @@ func _ready() -> void:
 
 	print("Data and hosting")
 	check(GameData.items.size() >= 9, "items loaded")
-	check(GameData.recipes_for_station("workbench").size() == 4, "workbench recipes loaded")
+	check(GameData.recipes_for_station("workbench").size() == 6, "workbench recipes loaded")
 	check(InputMap.has_action("interact"), "controls registered")
 	check(Net.mode == "host", "hosting a game")
 	player = main.get_node_or_null("Entities/1")
@@ -100,21 +108,50 @@ func _ready() -> void:
 	print("Crafting")
 	var furnace: Node2D = main.get_node("Entities/Furnace")
 	var workbench: Node2D = main.get_node("Entities/Workbench")
+	as_guild("blacksmith")
 	craft("smelt_iron")
 	check(Inventory.count_of("iron_ingot") == 0, "crafting away from the station is refused")
 	player.global_position = furnace.global_position + Vector2(0, 12)
 	while Crafting.can_craft(Inventory.bag, Crafting.find_recipe("smelt_iron")):
 		craft("smelt_iron")
-	check(Inventory.count_of("iron_ingot") >= 3, "smelted iron ingots")
+	check(Inventory.count_of("iron_ingot") >= 3, "blacksmith smelted iron ingots")
 	player.global_position = workbench.global_position + Vector2(0, 12)
+	craft("saw_planks")
+	check(Inventory.count_of("plank") == 0, "a blacksmith can't use woodworker recipes")
+	as_guild("woodworker")
 	for i in 3:
 		craft("saw_planks")
 	craft("carve_handle")
-	check(Inventory.count_of("handle") == 2, "carved handles")
-	craft("iron_sword")
-	check(Inventory.count_of("iron_sword") == 1, "crafted an iron sword")
+	check(Inventory.count_of("handle") == 2, "woodworker carved handles")
 	craft("wooden_shield")
-	check(Inventory.count_of("wooden_shield") == 1, "crafted a wooden shield")
+	check(Inventory.count_of("wooden_shield") == 1, "woodworker crafted a wooden shield")
+	as_guild("blacksmith")
+	player.global_position = furnace.global_position + Vector2(0, 12)
+	craft("iron_sword")
+	check(Inventory.count_of("iron_sword") == 1, "blacksmith forged an iron sword")
+
+	print("Guild materials")
+	for spec: Array in [["Sheep1", "wool"], ["Deer1", "hide"], ["Herb1", "herb"]]:
+		var node: Node2D = main.get_node("Entities/" + spec[0])
+		gather(node)
+		check(Inventory.count_of(spec[1]) >= 1, "gathered %s from %s" % [spec[1], spec[0]])
+	check(not main.get_node("Entities/Deer1/Sprite2D").visible, "a hunted deer disappears until it respawns")
+	Server.bag_of(1).add_item("wool", 8)
+	Server.bag_of(1).add_item("hide", 6)
+	as_guild("tailor")
+	player.global_position = main.get_node("Entities/Loom").global_position + Vector2(0, 12)
+	craft("spin_string")
+	craft("spin_string")
+	craft("weave_cloth")
+	check(Inventory.count_of("string") == 4 and Inventory.count_of("cloth") == 1, "tailor spun string and wove cloth")
+	as_guild("leatherworker")
+	player.global_position = main.get_node("Entities/TanningRack").global_position + Vector2(0, 12)
+	for i in 3:
+		craft("tan_leather")
+	craft("leather_armor")
+	check(Inventory.count_of("leather_armor") == 1, "leatherworker made armor with the tailor's string")
+	as_guild("")
+
 	var bag := Server.bag_of(1)
 	var missing := Crafting.craft(bag, {"inputs": {"iron_ingot": 999}, "output": {"item": "iron_sword"}})
 	check(not missing.ok, "crafting without materials is refused")
@@ -162,10 +199,27 @@ func _ready() -> void:
 	check(Town.is_built("watchtower"), "vote passed when time ran out with more yes than no")
 	check(Town.stock_of("log") == 7 and Town.stock_of("iron_ingot") == 2, "upgrade cost taken from the stockpile")
 	check(main.get_node_or_null("Entities/Upgrade_watchtower_29_11") != null, "watchtower appears in town")
+	var hall: Node2D = main.get_node("Entities/Hall_blacksmith")
+	Town.state.players["Helper"] = {"guild": "blacksmith", "contribution": 1}
+	use_spot(hall)
+	Town.request_appoint(Server.path_of(hall), "Helper")
+	check(Town.assistant("blacksmith") == "Helper", "leader appointed an assistant")
+	check(Town.seats().size() == 3, "leaders and the assistant hold seats")
+	Town.state.stockpile = {"log": 30, "plank": 20, "iron_ingot": 4}
+	use_spot(table)
 	Town.request_propose(Server.path_of(table), "silo")
+	check(not Town.is_built("silo"), "one of three seats is not a majority")
+	Town.state.proposal.votes["Helper"] = true
+	Town._resolve_vote(false)
+	check(Town.is_built("silo"), "the assistant's vote made the majority")
+	Town.request_propose(Server.path_of(table), "palisade")
 	Town.request_vote(Server.path_of(table), false)
-	check(Town.state.proposal.is_empty() and not Town.is_built("silo"), "leader can vote down a proposal")
+	check(not Town.state.proposal.is_empty(), "the proposer changing their vote alone doesn't end it")
+	Town.state.proposal.votes["Ghost"] = false
+	Town._resolve_vote(false)
+	check(Town.state.proposal.is_empty() and not Town.is_built("palisade"), "a majority of no votes defeats a proposal")
 	Town.state.players.erase("Ghost")
+	Town.state.players.erase("Helper")
 
 	print("Saving")
 	player.global_position = Vector2(123, 145)

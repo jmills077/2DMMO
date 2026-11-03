@@ -1,7 +1,22 @@
 [
-	{ "id": "smelt_iron", "station": "furnace", "inputs": { "iron_ore": 2, "coal": 1 }, "output": { "item": "iron_ingot", "count": 1 } },
-	{ "id": "saw_planks", "station": "workbench", "inputs": { "log": 1 }, "output": { "item": "plank", "count": 2 } },
-	{ "id": "carve_handle", "station": "workbench", "inputs": { "plank": 1 }, "output": { "item": "handle", "count": 2 } },
-	{ "id": "iron_sword", "station": "workbench", "inputs": { "iron_ingot": 2, "handle": 1 }, "output": { "item": "iron_sword", "count": 1 }, "high_quality_chance": 0.2 },
-	{ "id": "wooden_shield", "station": "workbench", "inputs": { "plank": 3, "iron_ingot": 1 }, "output": { "item": "wooden_shield", "count": 1 }, "high_quality_chance": 0.2 }
+	{ "id": "smelt_iron", "guild": "blacksmith", "station": "furnace", "inputs": { "iron_ore": 2, "coal": 1 }, "output": { "item": "iron_ingot", "count": 1 } },
+	{ "id": "iron_sword", "guild": "blacksmith", "station": "furnace", "inputs": { "iron_ingot": 2, "handle": 1 }, "output": { "item": "iron_sword", "count": 1 }, "high_quality_chance": 0.2 },
+
+	{ "id": "saw_planks", "guild": "woodworker", "station": "workbench", "inputs": { "log": 1 }, "output": { "item": "plank", "count": 2 } },
+	{ "id": "carve_handle", "guild": "woodworker", "station": "workbench", "inputs": { "plank": 1 }, "output": { "item": "handle", "count": 2 } },
+	{ "id": "wooden_shield", "guild": "woodworker", "station": "workbench", "inputs": { "plank": 3, "iron_ingot": 1 }, "output": { "item": "wooden_shield", "count": 1 }, "high_quality_chance": 0.2 },
+	{ "id": "wooden_bow", "guild": "woodworker", "station": "workbench", "inputs": { "plank": 2, "string": 1 }, "output": { "item": "wooden_bow", "count": 1 }, "high_quality_chance": 0.2 },
+
+	{ "id": "weave_cloth", "guild": "tailor", "station": "loom", "inputs": { "wool": 2 }, "output": { "item": "cloth", "count": 1 } },
+	{ "id": "spin_string", "guild": "tailor", "station": "loom", "inputs": { "wool": 1 }, "output": { "item": "string", "count": 2 } },
+	{ "id": "cloth_robe", "guild": "tailor", "station": "loom", "inputs": { "cloth": 4, "string": 2 }, "output": { "item": "cloth_robe", "count": 1 }, "high_quality_chance": 0.2 },
+
+	{ "id": "tan_leather", "guild": "leatherworker", "station": "tanning_rack", "inputs": { "hide": 2 }, "output": { "item": "leather", "count": 1 } },
+	{ "id": "cut_straps", "guild": "leatherworker", "station": "tanning_rack", "inputs": { "leather": 1 }, "output": { "item": "leather_strap", "count": 2 } },
+	{ "id": "leather_armor", "guild": "leatherworker", "station": "tanning_rack", "inputs": { "leather": 3, "string": 2 }, "output": { "item": "leather_armor", "count": 1 }, "high_quality_chance": 0.2 },
+
+	{ "id": "healing_salve", "guild": "apothecary", "station": "brewing_stand", "inputs": { "herb": 3 }, "output": { "item": "healing_salve", "count": 1 } },
+
+	{ "id": "cogwheel", "guild": "engineer", "station": "workbench", "inputs": { "iron_ingot": 1 }, "output": { "item": "cogwheel", "count": 2 } },
+	{ "id": "spike_trap", "guild": "engineer", "station": "workbench", "inputs": { "cogwheel": 2, "plank": 2, "leather_strap": 1 }, "output": { "item": "spike_trap", "count": 1 } }
 ]

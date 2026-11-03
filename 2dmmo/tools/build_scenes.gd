@@ -247,6 +247,18 @@ func _build_main(tileset: TileSet) -> Node:
 		banner.position = _tile_center(Vector2i(19 + i * 2, 19))
 		_add(entities, banner, main)
 
+	# Guild stations: loom (tailors), tanning rack (leatherworkers), brewing stand (apothecaries).
+	for spec: Array in [["Loom", "loom", "Loom", Vector2i(20, 17)],
+			["TanningRack", "tanning_rack", "Tanning Rack", Vector2i(27, 17)],
+			["BrewingStand", "brewing_stand", "Brewing Stand", Vector2i(28, 13)]]:
+		var station: Node2D = station_scene.instantiate()
+		station.name = spec[0]
+		station.set("station_id", spec[1])
+		station.set("display_name", spec[2])
+		station.set("texture", load("res://art/%s.png" % spec[1]))
+		station.position = _tile_center(spec[3])
+		_add(entities, station, main)
+
 	var tree_scene: PackedScene = load("res://scenes/tree.tscn")
 	var trees := [
 		Vector2i(3, 4), Vector2i(6, 3), Vector2i(9, 5), Vector2i(12, 4), Vector2i(4, 8),
@@ -278,6 +290,37 @@ func _build_main(tileset: TileSet) -> Node:
 		(rock.get_node("Sprite2D") as Sprite2D).texture = load("res://art/coal_rock.png")
 		rock.position = _tile_center(coal[i])
 		_add(entities, rock, main)
+
+	# Pasture north of town: sheep. Meadow south of town: deer. Herbs at the forest edges.
+	var critters := [
+		["Sheep", "Sheep", "wool", "shear", 2.0, 60.0, 2, 3, "sheep", "sheep_sheared",
+			[Vector2i(18, 4), Vector2i(21, 6), Vector2i(24, 3), Vector2i(27, 5), Vector2i(29, 7)]],
+		["Deer", "Deer", "hide", "hunt", 2.5, 90.0, 1, 2, "deer", "",
+			[Vector2i(18, 24), Vector2i(22, 26), Vector2i(26, 23), Vector2i(29, 26)]],
+		["Herb", "Herbs", "herb", "pick", 1.0, 40.0, 1, 3, "herb", "herb_picked",
+			[Vector2i(15, 3), Vector2i(16, 8), Vector2i(15, 21), Vector2i(16, 26), Vector2i(31, 22), Vector2i(31, 4)]],
+	]
+	for spec: Array in critters:
+		var cells: Array = spec[10]
+		for i in cells.size():
+			var node: Node2D = rock_scene.instantiate()
+			node.name = "%s%d" % [spec[0], i + 1]
+			node.set("display_name", spec[1])
+			node.set("item_id", spec[2])
+			node.set("verb", spec[3])
+			node.set("gather_seconds", spec[4])
+			node.set("respawn_seconds", spec[5])
+			node.set("yield_min", spec[6])
+			node.set("yield_max", spec[7])
+			var full: Texture2D = load("res://art/%s.png" % spec[8])
+			node.set("full_texture", full)
+			if spec[9] != "":
+				node.set("depleted_texture", load("res://art/%s.png" % spec[9]))
+			else:
+				node.set("hide_when_depleted", true)
+			(node.get_node("Sprite2D") as Sprite2D).texture = full
+			node.position = _tile_center(cells[i])
+			_add(entities, node, main)
 
 	var hud := CanvasLayer.new()
 	hud.name = "HUD"

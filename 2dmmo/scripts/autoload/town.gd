@@ -6,11 +6,12 @@ extends Node
 ## - Every player joins one crafting guild, once, the first time they play.
 ## - Players donate raw materials to the town stockpile. Each item donated
 ##   adds one point of contribution for that player.
-## - The top contributor in each guild is its leader.
-## - A leader proposes an upgrade at the round table. Each guild's leader
-##   casts that guild's vote; members advise their leader with their own vote.
-## - The upgrade passes when more than half of the guilds vote yes, or, when
-##   the vote time runs out, if more guilds said yes than no.
+## - The top contributor in each guild is its leader. The leader can appoint
+##   one assistant from the guild at the guild hall.
+## - A leader proposes an upgrade at the round table. Every leader and
+##   assistant has a seat and a vote; other members advise with their own vote.
+## - The upgrade passes when more than half of the seats vote yes, or, when
+##   the vote time runs out, if more seats said yes than no.
 ## - A passed upgrade takes its cost from the stockpile and appears in town.
 ##
 ## The server decides everything. Every window keeps a copy of `state`
@@ -22,7 +23,8 @@ signal changed
 const VOTE_SECONDS := 300.0
 
 ## {"stockpile": {item: count}, "players": {name: {"guild", "contribution"}},
-##  "built": [upgrade ids], "proposal": {} or {"upgrade", "by", "votes", "advice", "ends_at"},
+##  "assistants": {guild: name}, "built": [upgrade ids],
+##  "proposal": {} or {"upgrade", "by", "votes": {seat holder: bool}, "advice": {name: bool}, "ends_at"},
 ##  "online": [names]}
 var state := {}
 
@@ -35,7 +37,7 @@ func _ready() -> void:
 
 
 func reset() -> void:
-	state = {"stockpile": {}, "players": {}, "built": [], "proposal": {}, "online": []}
+	state = {"stockpile": {}, "players": {}, "assistants": {}, "built": [], "proposal": {}, "online": []}
 
 
 # --- Reading the town (works in every window) ---
@@ -67,6 +69,31 @@ func leader(guild_id: String) -> String:
 func is_leader(player_name: String) -> bool:
 	var guild := guild_of(player_name)
 	return guild != "" and leader(guild) == player_name
+
+
+## The guild's assistant, if the leader appointed one who is still a member
+## (and has not become the leader since).
+func assistant(guild_id: String) -> String:
+	var who := str(state.assistants.get(guild_id, ""))
+	if who == "" or guild_of(who) != guild_id or who == leader(guild_id):
+		return ""
+	return who
+
+
+## Leaders and assistants sit at the round table and vote.
+func has_seat(player_name: String) -> bool:
+	var guild := guild_of(player_name)
+	return guild != "" and (leader(guild) == player_name or assistant(guild) == player_name)
+
+
+## Everyone with a vote right now, guild by guild.
+func seats() -> Array:
+	var list: Array = []
+	for guild_id: String in active_guilds():
+		list.append(leader(guild_id))
+		if assistant(guild_id) != "":
+			list.append(assistant(guild_id))
+	return list
 
 
 ## Guilds with at least one member. Only these vote.
@@ -125,7 +152,7 @@ func to_save_data() -> Dictionary:
 
 func load_save_data(data: Dictionary) -> void:
 	reset()
-	for key: String in ["stockpile", "players", "built", "proposal"]:
+	for key: String in ["stockpile", "players", "assistants", "built", "proposal"]:
 		if data.has(key):
 			state[key] = data[key]
 	publish()
@@ -198,11 +225,11 @@ func request_propose(path: String, upgrade_id: String) -> void:
 	state.proposal = {
 		"upgrade": upgrade_id,
 		"by": player_name,
-		"votes": {guild_of(player_name): true},
+		"votes": {player_name: true},
 		"advice": {player_name: true},
 		"ends_at": Time.get_unix_time_from_system() + VOTE_SECONDS,
 	}
-	Server.toast_all("%s proposes building the %s. Leaders vote at the round table." % [player_name, upgrade.name])
+	Server.toast_all("%s proposes building the %s. Leaders and assistants vote at the round table." % [player_name, upgrade.name])
 	_resolve_vote(false)
 	publish()
 
@@ -220,13 +247,33 @@ func request_vote(path: String, yes: bool) -> void:
 		Server.toast(peer, "Join a guild first")
 		return
 	state.proposal.advice[player_name] = yes
-	if is_leader(player_name):
-		state.proposal.votes[guild] = yes
-		Server.toast(peer, "You voted %s for the %s" % ["yes" if yes else "no", GameData.get_guild(guild).name])
+	if has_seat(player_name):
+		state.proposal.votes[player_name] = yes
+		Server.toast(peer, "You voted %s" % ("yes" if yes else "no"))
 	else:
 		Server.toast(peer, "You advised %s to vote %s" % [leader(guild), "yes" if yes else "no"])
 	_resolve_vote(false)
 	publish()
+
+
+@rpc("any_peer", "call_local", "reliable")
+func request_appoint(path: String, member: String) -> void:
+	if not multiplayer.is_server():
+		return
+	var peer := Server.sender()
+	var player_name := Server.name_of(peer)
+	var guild := guild_of(player_name)
+	if guild == "" or not _at(peer, path, "guild_hall"):
+		return
+	if not is_leader(player_name):
+		Server.toast(peer, "Only the guild leader appoints an assistant")
+		return
+	if guild_of(member) != guild or member == player_name:
+		return
+	state.assistants[guild] = member
+	_resolve_vote(false)
+	publish()
+	Server.toast_all("%s appointed %s as assistant of the %s" % [player_name, member, GameData.get_guild(guild).name])
 
 
 # --- Server helpers ---
@@ -255,12 +302,12 @@ func _resolve_vote(time_up: bool) -> void:
 	var proposal: Dictionary = state.proposal
 	if proposal.is_empty():
 		return
-	var voters := active_guilds()
+	var voters := seats()
 	var yes := 0
 	var no := 0
-	for guild: String in proposal.votes:
-		if guild in voters:
-			if proposal.votes[guild]:
+	for voter: String in proposal.votes:
+		if voter in voters:
+			if proposal.votes[voter]:
 				yes += 1
 			else:
 				no += 1

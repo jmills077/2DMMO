@@ -33,6 +33,7 @@ func _ready() -> void:
 	_build_layout()
 	Inventory.changed.connect(_refresh_inventory)
 	Inventory.changed.connect(_refresh_crafting)
+	Town.changed.connect(_refresh_crafting)
 	Events.toast.connect(_show_toast)
 	Events.station_opened.connect(_open_station)
 	Events.local_player_ready.connect(_on_local_player_ready)
@@ -180,7 +181,15 @@ func _make_recipe_row(recipe: Dictionary) -> Control:
 	text.add_theme_constant_override("separation", 0)
 	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var count := int(output.get("count", 1))
-	text.add_child(_label(("%d x " % count if count > 1 else "") + GameData.item_name(output.item)))
+	var title := ("%d x " % count if count > 1 else "") + GameData.item_name(output.item)
+	var guild := GameData.get_guild(str(recipe.get("guild", "")))
+	var mine: bool = guild.is_empty() or Town.guild_of(Net.player_name) == guild.id
+	if not mine:
+		title += "  (%s only)" % guild.name
+	var title_label := _label(title)
+	if not mine:
+		title_label.modulate.a = 0.55
+	text.add_child(title_label)
 	var needs := RichTextLabel.new()
 	needs.bbcode_enabled = true
 	needs.fit_content = true
@@ -200,7 +209,7 @@ func _make_recipe_row(recipe: Dictionary) -> Control:
 	var button := Button.new()
 	button.text = "Craft"
 	button.add_theme_font_size_override("font_size", FONT_SIZE)
-	button.disabled = not Crafting.can_craft(Inventory.bag, recipe)
+	button.disabled = not mine or not Crafting.can_craft(Inventory.bag, recipe)
 	button.focus_mode = Control.FOCUS_NONE
 	button.pressed.connect(_craft.bind(recipe))
 	row.add_child(button)

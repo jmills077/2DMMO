@@ -213,35 +213,36 @@ func _draw_round_table() -> void:
 	_body.add_child(UI.label("Proposed by %s. %d:%02d left." % [proposal.by, left / 60, left % 60], UI.MUTED_COLOR))
 	for guild_id: String in Town.active_guilds():
 		var guild := GameData.get_guild(guild_id)
-		var vote := "waiting"
-		var color := UI.MUTED_COLOR
-		if proposal.votes.has(guild_id):
-			vote = "YES" if proposal.votes[guild_id] else "NO"
-			color = UI.GOOD_COLOR if proposal.votes[guild_id] else UI.BAD_COLOR
 		var yes := 0
 		var no := 0
 		for member: String in Town.members(guild_id):
-			if proposal.advice.has(member):
+			if proposal.advice.has(member) and not Town.has_seat(member):
 				if proposal.advice[member]:
 					yes += 1
 				else:
 					no += 1
-		var name_label := UI.label(str(guild.name), Color(str(guild.color)))
-		_body.add_child(UI.row([
-			name_label,
-			UI.label("(%s)" % Town.leader(guild_id), UI.MUTED_COLOR),
-			UI.spacer(),
-			UI.label("members %d yes %d no" % [yes, no], UI.MUTED_COLOR),
-			UI.label(vote, color),
-		]))
-	var verb := "Vote" if me_leader else "Advise"
+		var cells: Array = [UI.label(str(guild.name), Color(str(guild.color)))]
+		for seat: String in [Town.leader(guild_id), Town.assistant(guild_id)]:
+			if seat == "":
+				continue
+			var vote := "?"
+			var color := UI.MUTED_COLOR
+			if proposal.votes.has(seat):
+				vote = "yes" if proposal.votes[seat] else "no"
+				color = UI.GOOD_COLOR if proposal.votes[seat] else UI.BAD_COLOR
+			cells.append(UI.label("%s:" % seat, UI.MUTED_COLOR))
+			cells.append(UI.label(vote, color))
+		cells.append(UI.spacer())
+		cells.append(UI.label("members %d/%d" % [yes, no], UI.MUTED_COLOR))
+		_body.add_child(UI.row(cells))
+	var verb := "Vote" if Town.has_seat(_me()) else "Advise"
 	if Town.guild_of(_me()) != "":
 		_body.add_child(UI.row([
 			UI.spacer(),
 			UI.button("%s yes" % verb, _vote.bind(true)),
 			UI.button("%s no" % verb, _vote.bind(false)),
 		]))
-	_body.add_child(UI.label("Leaders vote for their guild; members advise. Most guilds win.", UI.MUTED_COLOR))
+	_body.add_child(UI.label("Leaders and assistants vote; members advise (yes/no).", UI.MUTED_COLOR))
 
 
 func _propose(upgrade_id: String) -> void:
@@ -261,18 +262,28 @@ func _draw_guild_hall() -> void:
 	for member: String in list:
 		total += Town.contribution_of(member)
 	_body.add_child(UI.label("Leader: %s" % (Town.leader(_guild_id) if not list.is_empty() else "nobody yet"), UI.TITLE_COLOR))
+	var helper := Town.assistant(_guild_id)
+	_body.add_child(UI.label("Assistant: %s" % (helper if helper != "" else "none appointed"), UI.TITLE_COLOR))
+	var i_lead := Town.leader(_guild_id) == _me()
 	_body.add_child(UI.label("Members: %d    Total contribution: %d" % [list.size(), total], UI.MUTED_COLOR))
 	for member: String in list:
 		var online := Town.is_online(member)
-		_body.add_child(UI.row([
+		var cells: Array = [
 			UI.label("*" if online else " ", UI.GOOD_COLOR),
 			UI.label(member + ("  (you)" if member == _me() else "")),
 			UI.spacer(),
-			UI.label("%d" % Town.contribution_of(member), UI.MUTED_COLOR),
-		]))
+		]
+		if i_lead and member != _me() and member != helper:
+			cells.append(UI.button("Make assistant", _appoint.bind(member)))
+		cells.append(UI.label("%d" % Town.contribution_of(member), UI.MUTED_COLOR))
+		_body.add_child(UI.row(cells))
 	if list.is_empty():
 		_body.add_child(UI.label("No members yet.", UI.MUTED_COLOR))
 	_body.add_child(UI.label("* online now", UI.MUTED_COLOR))
+
+
+func _appoint(member: String) -> void:
+	Town.request_appoint.rpc_id(1, _path, member)
 
 
 func _rich(bbcode: String) -> RichTextLabel:

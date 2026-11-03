@@ -139,7 +139,19 @@ func _shot() -> void:
 	Events.town_object_opened.emit("stockpile", "", Server.path_of(stockpile))
 	await get_tree().create_timer(0.5).timeout
 	_save_shot("stockpile")
-	await get_tree().create_timer(3.0).timeout
+	_world().get_node("HUD")._close_all()
+	if not host:
+		var bench: Node2D = _world().get_node("Entities/Workbench")
+		player.global_position = bench.global_position + Vector2(0, 14)
+		await get_tree().create_timer(0.5).timeout
+		Events.station_opened.emit("workbench", "Workbench")
+		await get_tree().create_timer(0.5).timeout
+		_save_shot("craft")
+	player.global_position = Vector2(23 * 16 + 8, (6 if host else 24) * 16 + 8)
+	await get_tree().create_timer(1.5).timeout
+	_save_shot("fields")
+	# The host stays longer so the other window isn't disconnected mid-shot.
+	await get_tree().create_timer(6.0 if host else 1.0).timeout
 
 
 func _save_shot(label: String) -> void:

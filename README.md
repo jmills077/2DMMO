@@ -46,8 +46,11 @@ To play with someone on your home network, start the game with `-- --host` on yo
 
 - The first time you play a character, you choose one of six crafting guilds: Blacksmith, Woodworker, Tailor, Leatherworker, Apothecary or Engineer. It is permanent. Names over players' heads are in their guild's color.
 - **Town stockpile** (the chest in town): donate raw materials. Each item is 1 point of contribution. Gear can't be donated.
-- **Guild halls** (the six banners along the south of town): see a guild's members, contributions and leader. The top contributor leads the guild.
-- **Round table**: a guild leader proposes an upgrade the stockpile can pay for. Each guild's leader votes for their guild, and members advise their leader with their own vote. It passes when more than half of the guilds say yes, or when the 5 minute vote ends with more yes than no. The cost comes out of the stockpile and the building appears in town.
+- **Guild halls** (the six banners along the south of town): see a guild's members, contributions, leader and assistant. The top contributor leads the guild and can appoint one assistant there.
+- **Round table**: a guild leader proposes an upgrade the stockpile can pay for. Every leader and assistant has a vote; other members advise with their own vote. It passes when more than half of the seats say yes, or when the 5 minute vote ends with more yes than no. The cost comes out of the stockpile and the building appears in town.
+- **Guild recipes**: each guild crafts only its own recipes (other guilds' recipes show greyed out). Anyone can gather anything. Many recipes need another guild's materials, for example a woodworker's bow needs a tailor's string.
+- **New materials**: shear sheep in the pasture north of town for wool, hunt deer in the meadow south of town for hide, and pick herbs at the forest edges.
+- **New stations**: loom (tailors), tanning rack (leatherworkers) and brewing stand (apothecaries). Blacksmiths now forge swords at the furnace; engineers use the workbench.
 - Upgrades so far: Palisade, Watchtower and Supply Silo. They don't do anything yet; invasions in milestone 4 will use them.
 
 ## Changing the game without code
