@@ -21,7 +21,6 @@ var _item_details: Label
 var _craft_panel: PanelContainer
 var _craft_title: Label
 var _craft_list: VBoxContainer
-var _current_station := ""
 var _status: Label
 var _connect_panel: PanelContainer
 var _name_field: LineEdit
@@ -35,7 +34,6 @@ func _ready() -> void:
 	Inventory.changed.connect(_refresh_crafting)
 	Town.changed.connect(_refresh_crafting)
 	Events.toast.connect(_show_toast)
-	Events.station_opened.connect(_open_station)
 	Events.local_player_ready.connect(_on_local_player_ready)
 	Events.status_changed.connect(func(text: String) -> void: _status.text = text)
 	Events.show_connect_menu.connect(_show_connect_menu)
@@ -56,6 +54,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("save_game"):
 		if Net.mode != "":
 			Server.request_save.rpc_id(1)
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("crafting"):
+		_set_crafting_visible(not _craft_panel.visible)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("inventory"):
 		_set_inventory_visible(not _inventory_panel.visible)
@@ -94,7 +95,6 @@ func _set_inventory_visible(show: bool) -> void:
 	_inventory_panel.visible = show
 	if not show:
 		_craft_panel.visible = false
-		_current_station = ""
 	_update_blocking()
 
 
@@ -151,21 +151,28 @@ func _describe(slot: Dictionary) -> String:
 
 # --- Crafting ---
 
-func _open_station(station_id: String, display_name: String) -> void:
-	_current_station = station_id
-	_craft_title.text = display_name
-	_craft_panel.visible = true
-	_set_inventory_visible(true)
-	_refresh_crafting()
+## Your own crafting menu (C). It lists only the recipes you know, and you
+## can craft anywhere.
+func _set_crafting_visible(show: bool) -> void:
+	_craft_panel.visible = show
+	if show:
+		_inventory_panel.visible = true
+		_refresh_crafting()
+	_update_blocking()
 
 
 func _refresh_crafting() -> void:
-	if _current_station == "":
+	if not _craft_panel.visible:
 		return
 	for child in _craft_list.get_children():
 		child.queue_free()
-	for recipe: Dictionary in GameData.recipes_for_station(_current_station):
+	var guild := GameData.get_guild(Town.guild_of(Net.player_name))
+	_craft_title.text = "Crafting: %s" % guild.member if not guild.is_empty() else "Crafting"
+	var known := Town.known_recipes(Net.player_name)
+	for recipe: Dictionary in known:
 		_craft_list.add_child(_make_recipe_row(recipe))
+	if known.is_empty():
+		_craft_list.add_child(_label("Join a guild to learn its recipes."))
 
 
 func _make_recipe_row(recipe: Dictionary) -> Control:
@@ -182,14 +189,7 @@ func _make_recipe_row(recipe: Dictionary) -> Control:
 	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var count := int(output.get("count", 1))
 	var title := ("%d x " % count if count > 1 else "") + GameData.item_name(output.item)
-	var guild := GameData.get_guild(str(recipe.get("guild", "")))
-	var mine: bool = guild.is_empty() or Town.guild_of(Net.player_name) == guild.id
-	if not mine:
-		title += "  (%s only)" % guild.name
-	var title_label := _label(title)
-	if not mine:
-		title_label.modulate.a = 0.55
-	text.add_child(title_label)
+	text.add_child(_label(title))
 	var needs := RichTextLabel.new()
 	needs.bbcode_enabled = true
 	needs.fit_content = true
@@ -209,7 +209,7 @@ func _make_recipe_row(recipe: Dictionary) -> Control:
 	var button := Button.new()
 	button.text = "Craft"
 	button.add_theme_font_size_override("font_size", FONT_SIZE)
-	button.disabled = not mine or not Crafting.can_craft(Inventory.bag, recipe)
+	button.disabled = not Crafting.can_craft(Inventory.bag, recipe)
 	button.focus_mode = Control.FOCUS_NONE
 	button.pressed.connect(_craft.bind(recipe))
 	row.add_child(button)
@@ -308,7 +308,7 @@ func _build_layout() -> void:
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_root)
 
-	var help := _label("WASD move   E interact   I bag   F5 save   Esc close")
+	var help := _label("WASD move   E interact   I bag   C craft   F5 save   Esc close")
 	help.position = Vector2(4, 2)
 	help.modulate.a = 0.75
 	_root.add_child(help)

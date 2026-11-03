@@ -141,10 +141,7 @@ func _shot() -> void:
 	_save_shot("stockpile")
 	_world().get_node("HUD")._close_all()
 	if not host:
-		var bench: Node2D = _world().get_node("Entities/Workbench")
-		player.global_position = bench.global_position + Vector2(0, 14)
-		await get_tree().create_timer(0.5).timeout
-		Events.station_opened.emit("workbench", "Workbench")
+		_world().get_node("HUD")._set_crafting_visible(true)
 		await get_tree().create_timer(0.5).timeout
 		_save_shot("craft")
 	player.global_position = Vector2(23 * 16 + 8, (6 if host else 24) * 16 + 8)

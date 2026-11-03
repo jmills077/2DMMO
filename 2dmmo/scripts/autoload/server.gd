@@ -183,11 +183,11 @@ func request_craft(recipe_id: String) -> void:
 	if recipe.is_empty() or bag_of(peer) == null:
 		return
 	var guild := str(recipe.get("guild", ""))
+	if not Town.knows_recipe(name_of(peer), recipe_id):
+		toast(peer, "You don't know that recipe")
+		return
 	if guild != "" and Town.guild_of(name_of(peer)) != guild:
 		toast(peer, "Only %s can craft that" % GameData.get_guild(guild).get("name", guild))
-		return
-	if not _near_station(peer, str(recipe.get("station", ""))):
-		toast(peer, "Too far from the station")
 		return
 	var result := Crafting.craft(bag_of(peer), recipe)
 	send_bag(peer)
@@ -306,17 +306,6 @@ func reachable(peer_id: int, path: String) -> Node2D:
 		toast(peer_id, "Too far away")
 		return null
 	return target
-
-
-func _near_station(peer_id: int, station_id: String) -> bool:
-	var player := player_node(peer_id)
-	if player == null:
-		return false
-	for station: Node2D in get_tree().get_nodes_in_group("station"):
-		if station.station_id == station_id and \
-				player.global_position.distance_to(station.global_position) <= MAX_USE_DISTANCE:
-			return true
-	return false
 
 
 func _give(peer_id: int, rewards: Dictionary) -> void:

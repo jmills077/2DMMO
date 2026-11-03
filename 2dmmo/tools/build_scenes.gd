@@ -29,7 +29,6 @@ func _ready() -> void:
 	_save(_build_player(), "res://scenes/player.tscn")
 	_save(_build_ore_rock(), "res://scenes/ore_rock.tscn")
 	_save(_build_tree(), "res://scenes/tree.tscn")
-	_save(_build_station(), "res://scenes/station.tscn")
 	_save(_build_town_object(), "res://scenes/town_object.tscn")
 	_save(_build_main(load("res://art/terrain_tileset.tres")), "res://scenes/main.tscn")
 	print("Scenes built.")
@@ -159,14 +158,6 @@ func _build_tree() -> Node:
 	return tree
 
 
-func _build_station() -> Node:
-	var station := _static_body("Station", "res://scripts/world/station.gd")
-	station.set("texture", load("res://art/workbench.png"))
-	(station.get_node("Sprite2D") as Sprite2D).texture = load("res://art/workbench.png")
-	_add(station, _rect_shape(Vector2(14, 9), Vector2(0, 2)), station)
-	return station
-
-
 func _build_town_object() -> Node:
 	var thing := _static_body("TownObject", "res://scripts/world/town_object.gd")
 	thing.set("texture", load("res://art/stockpile.png"))
@@ -206,21 +197,6 @@ func _build_main(tileset: TileSet) -> Node:
 	_add(main, spawner, main)
 	spawner.spawn_path = spawner.get_path_to(entities)
 
-	var station_scene: PackedScene = load("res://scenes/station.tscn")
-	var furnace: Node2D = station_scene.instantiate()
-	furnace.name = "Furnace"
-	furnace.set("station_id", "furnace")
-	furnace.set("display_name", "Furnace")
-	furnace.set("texture", load("res://art/furnace.png"))
-	furnace.position = _tile_center(Vector2i(21, 13))
-	_add(entities, furnace, main)
-	var workbench: Node2D = station_scene.instantiate()
-	workbench.name = "Workbench"
-	workbench.set("station_id", "workbench")
-	workbench.set("display_name", "Workbench")
-	workbench.position = _tile_center(Vector2i(26, 13))
-	_add(entities, workbench, main)
-
 	# Town: stockpile, round table, and a banner for each guild hall.
 	var town_scene: PackedScene = load("res://scenes/town_object.tscn")
 	var stockpile: Node2D = town_scene.instantiate()
@@ -246,18 +222,6 @@ func _build_main(tileset: TileSet) -> Node:
 		(banner.get_node("Sprite2D") as Sprite2D).texture = load("res://art/banner_pole.png")
 		banner.position = _tile_center(Vector2i(19 + i * 2, 19))
 		_add(entities, banner, main)
-
-	# Guild stations: loom (tailors), tanning rack (leatherworkers), brewing stand (apothecaries).
-	for spec: Array in [["Loom", "loom", "Loom", Vector2i(20, 17)],
-			["TanningRack", "tanning_rack", "Tanning Rack", Vector2i(27, 17)],
-			["BrewingStand", "brewing_stand", "Brewing Stand", Vector2i(28, 13)]]:
-		var station: Node2D = station_scene.instantiate()
-		station.name = spec[0]
-		station.set("station_id", spec[1])
-		station.set("display_name", spec[2])
-		station.set("texture", load("res://art/%s.png" % spec[1]))
-		station.position = _tile_center(spec[3])
-		_add(entities, station, main)
 
 	var tree_scene: PackedScene = load("res://scenes/tree.tscn")
 	var trees := [

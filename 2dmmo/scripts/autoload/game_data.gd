@@ -72,8 +72,8 @@ func is_donatable(id: String) -> bool:
 	return items.has(id) and not get_item(id).has("stats")
 
 
-func recipes_for_station(station_id: String) -> Array:
-	return recipes.filter(func(r: Dictionary) -> bool: return r.get("station") == station_id)
+func recipes_for_guild(guild_id: String) -> Array:
+	return recipes.filter(func(r: Dictionary) -> bool: return r.get("guild") == guild_id)
 
 
 func _load_json(path: String) -> Variant:

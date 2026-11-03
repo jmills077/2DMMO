@@ -96,6 +96,21 @@ func seats() -> Array:
 	return list
 
 
+## The recipes this player can craft: their guild's starting recipes, plus
+## any they have learned (from guild trainers, coming later). A recipe with
+## "starter": false in data/recipes.json must be learned first.
+func known_recipes(player_name: String) -> Array:
+	var guild := guild_of(player_name)
+	var learned: Array = state.players.get(player_name, {}).get("learned", [])
+	return GameData.recipes.filter(func(r: Dictionary) -> bool:
+		return guild != "" and r.get("guild") == guild \
+				and (bool(r.get("starter", true)) or r.id in learned))
+
+
+func knows_recipe(player_name: String, recipe_id: String) -> bool:
+	return known_recipes(player_name).any(func(r: Dictionary) -> bool: return r.id == recipe_id)
+
+
 ## Guilds with at least one member. Only these vote.
 func active_guilds() -> Array:
 	var ids: Array = []

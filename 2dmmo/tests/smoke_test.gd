@@ -60,8 +60,8 @@ func _ready() -> void:
 
 	print("Data and hosting")
 	check(GameData.items.size() >= 9, "items loaded")
-	check(GameData.recipes_for_station("workbench").size() == 6, "workbench recipes loaded")
-	check(InputMap.has_action("interact"), "controls registered")
+	check(GameData.recipes_for_guild("woodworker").size() == 4, "woodworker recipes loaded")
+	check(InputMap.has_action("interact") and InputMap.has_action("crafting"), "controls registered")
 	check(Net.mode == "host", "hosting a game")
 	player = main.get_node_or_null("Entities/1")
 	check(player != null, "host player spawned")
@@ -106,16 +106,12 @@ func _ready() -> void:
 		tree._process(1000.0)
 
 	print("Crafting")
-	var furnace: Node2D = main.get_node("Entities/Furnace")
-	var workbench: Node2D = main.get_node("Entities/Workbench")
 	as_guild("blacksmith")
-	craft("smelt_iron")
-	check(Inventory.count_of("iron_ingot") == 0, "crafting away from the station is refused")
-	player.global_position = furnace.global_position + Vector2(0, 12)
+	player.global_position = Vector2(60, 60)
 	while Crafting.can_craft(Inventory.bag, Crafting.find_recipe("smelt_iron")):
 		craft("smelt_iron")
-	check(Inventory.count_of("iron_ingot") >= 3, "blacksmith smelted iron ingots")
-	player.global_position = workbench.global_position + Vector2(0, 12)
+	check(Inventory.count_of("iron_ingot") >= 3, "blacksmith smelted iron ingots, away from any station")
+	check(Town.known_recipes("Smoke").size() == 2, "a blacksmith knows the 2 blacksmith recipes")
 	craft("saw_planks")
 	check(Inventory.count_of("plank") == 0, "a blacksmith can't use woodworker recipes")
 	as_guild("woodworker")
@@ -126,9 +122,14 @@ func _ready() -> void:
 	craft("wooden_shield")
 	check(Inventory.count_of("wooden_shield") == 1, "woodworker crafted a wooden shield")
 	as_guild("blacksmith")
-	player.global_position = furnace.global_position + Vector2(0, 12)
 	craft("iron_sword")
 	check(Inventory.count_of("iron_sword") == 1, "blacksmith forged an iron sword")
+	var learned_only := {"id": "secret", "guild": "blacksmith", "starter": false, "inputs": {}, "output": {"item": "coal", "count": 1}}
+	GameData.recipes.append(learned_only)
+	check(not Town.knows_recipe("Smoke", "secret"), "a non-starter recipe must be learned first")
+	Town.state.players.Smoke["learned"] = ["secret"]
+	check(Town.knows_recipe("Smoke", "secret"), "a learned recipe shows up")
+	GameData.recipes.erase(learned_only)
 
 	print("Guild materials")
 	for spec: Array in [["Sheep1", "wool"], ["Deer1", "hide"], ["Herb1", "herb"]]:
@@ -139,13 +140,11 @@ func _ready() -> void:
 	Server.bag_of(1).add_item("wool", 8)
 	Server.bag_of(1).add_item("hide", 6)
 	as_guild("tailor")
-	player.global_position = main.get_node("Entities/Loom").global_position + Vector2(0, 12)
 	craft("spin_string")
 	craft("spin_string")
 	craft("weave_cloth")
 	check(Inventory.count_of("string") == 4 and Inventory.count_of("cloth") == 1, "tailor spun string and wove cloth")
 	as_guild("leatherworker")
-	player.global_position = main.get_node("Entities/TanningRack").global_position + Vector2(0, 12)
 	for i in 3:
 		craft("tan_leather")
 	craft("leather_armor")
